@@ -5,32 +5,50 @@ RUN apt-get update && apt-get install -y \
     git \
     unzip \
     curl \
-    libzip-dev \
     zip \
+    libzip-dev \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
     nodejs \
     npm
 
 # Install PHP extensions
-RUN docker-php-ext-install pdo pdo_mysql zip
+RUN docker-php-ext-install \
+    pdo \
+    pdo_mysql \
+    mbstring \
+    zip \
+    exif \
+    pcntl
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
-# Copy files
+# Copy all files
 COPY . .
 
-# Install PHP dependencies
+# Create .env if missing
+RUN cp .env.example .env || true
+
+# Install Composer dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Install Node dependencies
-RUN npm install && npm run build
+# Generate app key if missing
+RUN php artisan key:generate || true
 
-# Laravel optimizations
-RUN php artisan config:cache
-RUN php artisan route:cache
-RUN php artisan view:cache
+# Install Node dependencies
+RUN npm install
+
+# Build Vite assets
+RUN npm run build
+
+# Laravel cache optimization
+RUN php artisan config:clear
+RUN php artisan cache:clear
+RUN php artisan view:clear
 
 EXPOSE 10000
 
