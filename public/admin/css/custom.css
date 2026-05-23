@@ -1,0 +1,163 @@
+body.admin-shell {
+  background: #181a1f;
+  color: #dee2e6;
+}
+
+.admin-topbar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+
+.admin-brand .brand-text {
+  letter-spacing: 0;
+}
+
+.admin-sidebar-toggle {
+  border-radius: 4px;
+  height: 34px;
+  width: 34px;
+}
+
+.admin-topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.admin-topbar-actions .btn,
+.admin-page-actions .btn {
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.admin-frame {
+  min-height: calc(100vh - 70px);
+}
+
+.admin-sidebar .heading {
+  color: #6c757d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-sidebar ul a {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.admin-sidebar ul a i {
+  min-width: 18px;
+  text-align: center;
+}
+
+.admin-sidebar ul li.active > a {
+  color: #fff;
+  font-weight: 700;
+}
+
+.admin-content {
+  min-width: 0;
+}
+
+.admin-page-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-page-subtitle {
+  color: #8b949e;
+  font-size: 0.86rem;
+  margin-top: 4px;
+}
+
+.admin-page-body {
+  padding: 30px 0;
+}
+
+.admin-page-body .container-fluid {
+  max-width: 1680px;
+}
+
+.block,
+.statistic-block {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+}
+
+.table {
+  color: #dee2e6;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.035);
+  color: #fff;
+}
+
+.table td,
+.table th {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.text-muted {
+  color: #9aa4af !important;
+}
+
+.btn-outline-primary {
+  color: #8ab4f8;
+}
+
+.btn-outline-primary:hover {
+  color: #fff;
+}
+
+.pagination {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.page-link {
+  background: #2d3035;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #dee2e6;
+}
+
+.page-item.active .page-link {
+  background: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.page-item.disabled .page-link {
+  background: #22252a;
+  border-color: rgba(255, 255, 255, 0.06);
+  color: #6c757d;
+}
+
+.admin-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 767.98px) {
+  .admin-topbar-actions {
+    gap: 6px;
+  }
+
+  .admin-topbar-actions .btn {
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+  }
+
+  .admin-page-body {
+    padding: 20px 0;
+  }
+
+  .admin-page-actions {
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  .admin-page-actions .btn {
+    margin-bottom: 6px;
+  }
+}
