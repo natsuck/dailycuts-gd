@@ -12,10 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('orders', function (Blueprint $table) {
-            $table->string('payment_status')->nullable();
-            $table->string('payment_method')->nullable();
-            $table->string('payment_intent_id')->nullable()->unique();
-            $table->foreignId('pending_order_id')->nullable()->constrained()->nullOnDelete();
+            if (!Schema::hasColumn('orders', 'payment_status')) {
+                $table->string('payment_status')->nullable();
+            }
+            if (!Schema::hasColumn('orders', 'payment_method')) {
+                $table->string('payment_method')->nullable();
+            }
+            if (!Schema::hasColumn('orders', 'payment_intent_id')) {
+                $table->string('payment_intent_id')->nullable()->unique();
+            }
+            if (!Schema::hasColumn('orders', 'pending_order_id')) {
+                $table->foreignId('pending_order_id')->nullable()->constrained()->nullOnDelete();
+            }
         });
     }
 
