@@ -30,9 +30,6 @@ WORKDIR /app
 # Copy all files
 COPY . .
 
-# Create .env if missing
-RUN cp .env.example .env || true
-
 # Install Composer dependencies
 RUN composer install --no-dev --optimize-autoloader
 
