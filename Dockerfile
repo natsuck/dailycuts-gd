@@ -45,10 +45,6 @@ RUN npm install
 # Build Vite assets
 RUN npm run build
 
-# Laravel cache optimization
-RUN php artisan config:clear
-RUN php artisan cache:clear
-RUN php artisan view:clear
 
 EXPOSE 10000
 
