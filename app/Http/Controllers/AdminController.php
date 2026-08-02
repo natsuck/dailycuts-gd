@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
@@ -51,7 +52,10 @@ class AdminController extends Controller
         $recentOrders = Order::with(['user', 'items.product'])
             ->latest()
             ->take(6)
-            ->get();
+            ->get()
+            ->each(function ($order) {
+                $order->setRelation('items', $order->items->take(5));
+            });
 
         $topProducts = OrderItem::query()
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
@@ -112,7 +116,7 @@ class AdminController extends Controller
             'category' => ['required', 'string', 'max:255', 'unique:categories,category'],
         ]);
 
-        $category = new Category();
+        $category = new Category;
         $category->category = $validated['category'];
         $category->save();
 
@@ -157,14 +161,15 @@ class AdminController extends Controller
     public function addProduct()
     {
         $categories = Category::all();
+        $allProducts = Product::orderBy('product_title')->get(['id', 'product_title']);
 
-        return view('admin.addproduct', compact('categories'));
+        return view('admin.addproduct', compact('categories', 'allProducts'));
     }
 
     public function postAddProduct(Request $request)
     {
         $validated = $this->validateProduct($request);
-        $product = new Product();
+        $product = new Product;
         $product->fill($validated);
 
         if ($request->hasFile('product_image')) {
@@ -172,6 +177,9 @@ class AdminController extends Controller
         }
 
         $product->save();
+
+        $this->syncVariants($product, $request);
+        $product->pairings()->sync($request->input('pairings', []));
 
         return redirect()->back()->with('product_message', 'Product added successfully!');
     }
@@ -199,10 +207,11 @@ class AdminController extends Controller
 
     public function updateProduct($id)
     {
-        $product = Product::findOrFail($id);
+        $product = Product::with('pairings')->findOrFail($id);
         $categories = Category::all();
+        $allProducts = Product::where('id', '!=', $id)->orderBy('product_title')->get(['id', 'product_title']);
 
-        return view('admin.updateproduct', compact('product', 'categories'));
+        return view('admin.updateproduct', compact('product', 'categories', 'allProducts'));
     }
 
     public function postUpdateProduct(Request $request, $id)
@@ -222,6 +231,9 @@ class AdminController extends Controller
         }
 
         $product->save();
+
+        $this->syncVariants($product, $request);
+        $product->pairings()->sync($request->input('pairings', []));
 
         return redirect()->back()->with('update_product_message', 'Product updated successfully!');
     }
@@ -266,10 +278,28 @@ class AdminController extends Controller
     {
         $order = Order::with(['items.product', 'user'])->findOrFail($id);
         $validated = $request->validate([
-            'status' => ['required', 'in:pending,shipped,delivered,cancelled,returned'],
+            'status' => ['required', 'in:pending,processing,shipped,delivered,cancelled,returned'],
         ]);
 
-        $order->status = $validated['status'];
+        $allowedTransitions = [
+            'pending' => ['processing', 'shipped', 'cancelled'],
+            'processing' => ['shipped', 'delivered', 'cancelled'],
+            'shipped' => ['delivered', 'returned'],
+            'delivered' => ['returned'],
+            'cancelled' => [],
+            'returned' => [],
+        ];
+
+        $current = $order->status;
+        $target = $validated['status'];
+
+        if (isset($allowedTransitions[$current]) && ! in_array($target, $allowedTransitions[$current], true)) {
+            return redirect()->back()->withErrors([
+                'status' => "Cannot change an order from \"{$current}\" to \"{$target}\".",
+            ]);
+        }
+
+        $order->status = $target;
         $order->save();
 
         if ($order->status === 'shipped') {
@@ -330,15 +360,23 @@ class AdminController extends Controller
 
     protected function validateProduct(Request $request, bool $isUpdate = false): array
     {
+        $hasVariants = ! empty($request->input('variant_weight')) && collect($request->input('variant_weight'))->filter()->isNotEmpty();
+
         return $request->validate([
             'product_title' => ['required', 'string', 'max:255'],
             'product_description' => ['required', 'string'],
-            'product_quantity' => ['required', 'integer', 'min:0'],
+            'product_quantity' => [$hasVariants ? 'nullable' : 'required', 'integer', 'min:0'],
             'reorder_level' => ['nullable', 'integer', 'min:0'],
             'expiry_date' => ['nullable', 'date'],
-            'product_price' => ['required', 'numeric', 'min:0'],
+            'product_price' => [$hasVariants ? 'nullable' : 'required', 'numeric', 'min:0'],
             'product_category' => ['required', 'string', 'max:255'],
+            'product_type' => ['nullable', 'string', 'in:fresh,frozen,pantry,produce'],
+            'pairings' => ['nullable', 'array'],
+            'pairings.*' => ['integer', 'exists:products,id'],
             'product_image' => [$isUpdate ? 'nullable' : 'required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'variant_weight.*' => ['nullable', 'string', 'max:50'],
+            'variant_price.*' => ['nullable', 'numeric', 'min:0'],
+            'variant_quantity.*' => ['nullable', 'integer', 'min:0'],
         ]);
     }
 
@@ -349,5 +387,43 @@ class AdminController extends Controller
         $image->move(public_path('products'), $imageName);
 
         return $imageName;
+    }
+
+    protected function syncVariants(Product $product, Request $request): void
+    {
+        $weights = $request->input('variant_weight', []);
+        $prices = $request->input('variant_price', []);
+        $quantities = $request->input('variant_quantity', []);
+
+        $data = [];
+        for ($i = 0; $i < count($weights); $i++) {
+            $weight = trim($weights[$i] ?? '');
+            $price = $prices[$i] ?? null;
+            $qty = $quantities[$i] ?? 0;
+
+            if ($weight !== '' && $price !== null && $price !== '') {
+                $data[] = [
+                    'weight' => $weight,
+                    'price' => $price,
+                    'quantity' => (int) $qty,
+                ];
+            }
+        }
+
+        $existingIds = $product->variants->pluck('id')->toArray();
+        $incomingCount = count($data);
+        $keepIds = array_slice($existingIds, 0, $incomingCount);
+
+        ProductVariant::where('product_id', $product->id)
+            ->whereNotIn('id', $keepIds)
+            ->delete();
+
+        foreach ($data as $index => $variant) {
+            if (isset($keepIds[$index])) {
+                ProductVariant::where('id', $keepIds[$index])->update($variant);
+            } else {
+                ProductVariant::create(array_merge($variant, ['product_id' => $product->id]));
+            }
+        }
     }
 }

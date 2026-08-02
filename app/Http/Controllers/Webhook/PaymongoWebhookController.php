@@ -5,14 +5,14 @@ namespace App\Http\Controllers\Webhook;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\Order;
-use App\Models\Product;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PaymongoWebhookController extends Controller
 {
-    public function handle(Request $request)
+    public function handle(Request $request, InventoryService $inventory)
     {
         $payloadRaw = $request->getContent();
         $payload = json_decode($payloadRaw, true);
@@ -41,10 +41,6 @@ class PaymongoWebhookController extends Controller
             return response()->json(['status' => 'ignored']);
         }
 
-        if ($order->payment_status === 'paid' && $eventType !== 'payment.failed') {
-            return response()->json(['status' => 'already processed']);
-        }
-
         if ($eventType === 'checkout_session.payment.paid' || $eventType === 'payment.paid') {
             DB::transaction(function () use ($order, $paymentId, $paymentMethod) {
                 $lockedOrder = Order::with('items')->lockForUpdate()->findOrFail($order->id);
@@ -53,16 +49,12 @@ class PaymongoWebhookController extends Controller
                     return;
                 }
 
-                foreach ($lockedOrder->items as $item) {
-                    $product = Product::lockForUpdate()->find($item->product_id);
+                if ($lockedOrder->status === 'cancelled') {
+                    Log::warning('Ignored payment confirmation for a cancelled order.', [
+                        'order_id' => $lockedOrder->id,
+                    ]);
 
-                    if (! $product || $product->product_quantity < $item->quantity) {
-                        throw new \RuntimeException("Insufficient stock for order {$lockedOrder->id}.");
-                    }
-                }
-
-                foreach ($lockedOrder->items as $item) {
-                    Product::whereKey($item->product_id)->decrement('product_quantity', $item->quantity);
+                    return;
                 }
 
                 $lockedOrder->payment_status = 'paid';
@@ -74,10 +66,19 @@ class PaymongoWebhookController extends Controller
             });
         }
 
-        if ($eventType === 'payment.failed' && $order->payment_status !== 'paid') {
-            $order->payment_status = 'failed';
-            $order->status = 'cancelled';
-            $order->save();
+        if ($eventType === 'payment.failed') {
+            DB::transaction(function () use ($order, $inventory) {
+                $lockedOrder = Order::with('items')->lockForUpdate()->findOrFail($order->id);
+
+                if ($lockedOrder->payment_status === 'paid' || $lockedOrder->status === 'cancelled') {
+                    return;
+                }
+
+                $inventory->release($lockedOrder);
+                $lockedOrder->payment_status = 'failed';
+                $lockedOrder->status = 'cancelled';
+                $lockedOrder->save();
+            });
         }
 
         return response()->json(['status' => 'ok']);
@@ -85,10 +86,10 @@ class PaymongoWebhookController extends Controller
 
     protected function hasValidSignature(Request $request, string $payloadRaw, array $payload): bool
     {
-        $secret = (string) env('PAYMONGO_WEBHOOK_SECRET', '');
+        $secret = (string) config('paymongo.webhook_secret', '');
 
         if ($secret === '') {
-            return app()->environment('local');
+            return false;
         }
 
         $signatureHeader = $request->header('Paymongo-Signature', '');

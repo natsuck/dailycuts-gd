@@ -2,16 +2,16 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Pagination\Paginator;
-use Illuminate\Support\Facades\View;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Auth\Notifications\VerifyEmail;
-use Illuminate\Notifications\Messages\MailMessage;
 use App\Models\Cart;
 use App\Models\SaleBanner;
-
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,7 +28,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Paginator::useBootstrapFive();
+        Paginator::useTailwind();
 
         View::composer('*', function ($view) {
             $cartCount = Auth::check()
@@ -50,6 +50,23 @@ class AppServiceProvider extends ServiceProvider
                 ->orderByDesc('created_at')
                 ->take(3)
                 ->get());
+        });
+
+        VerifyEmail::createUrlUsing(function ($notifiable) {
+            URL::forceRootUrl((string) config('app.url'));
+
+            $url = URL::temporarySignedRoute(
+                'verification.verify',
+                now()->addMinutes((int) config('auth.verification.expire', 60)),
+                [
+                    'id' => $notifiable->getKey(),
+                    'hash' => sha1($notifiable->getEmailForVerification()),
+                ]
+            );
+
+            URL::forceRootUrl(null);
+
+            return $url;
         });
 
         VerifyEmail::toMailUsing(function ($notifiable, $url) {

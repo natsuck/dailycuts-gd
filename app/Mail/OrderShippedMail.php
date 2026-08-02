@@ -12,11 +12,11 @@ class OrderShippedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $order; 
+    public $order;
 
     public function __construct($order)
     {
-        $this->order = $order; 
+        $this->order = $order;
     }
 
     public function envelope(): Envelope
@@ -31,7 +31,7 @@ class OrderShippedMail extends Mailable
         return new Content(
             view: 'emails.order_shipped',
             with: [
-                'order' => $this->order, 
+                'order' => $this->order,
             ],
         );
     }

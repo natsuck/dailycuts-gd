@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SaleBanner;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class AdminSaleBannerController extends Controller
 {
@@ -88,7 +89,7 @@ class AdminSaleBannerController extends Controller
             'title' => ['required', 'string', 'max:120'],
             'subtitle' => ['nullable', 'string', 'max:500'],
             'button_text' => ['nullable', 'string', 'max:40'],
-            'button_url' => ['nullable', 'string', 'max:255'],
+            'button_url' => ['nullable', 'url', 'max:255'],
             'background_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'text_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
@@ -114,7 +115,8 @@ class AdminSaleBannerController extends Controller
             return;
         }
 
-        $imagePath = public_path($banner->image_path);
+        $relativePath = Str::after($banner->image_path, 'storage/');
+        $imagePath = storage_path('app/public/sale-banners/'.$relativePath);
 
         if (is_file($imagePath)) {
             unlink($imagePath);

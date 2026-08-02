@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'lalamove' => [
+        'key' => env('LALAMOVE_API_KEY'),
+        'secret' => env('LALAMOVE_API_SECRET'),
+        'market' => env('LALAMOVE_MARKET', 'PH'),
+        'sandbox' => (bool) env('LALAMOVE_SANDBOX', true),
+    ],
+
 ];

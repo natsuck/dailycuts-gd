@@ -13,7 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(
-            at: '*',
+            at: '127.0.0.0/8,::1',
             headers: Request::HEADER_X_FORWARDED_FOR
                 | Request::HEADER_X_FORWARDED_HOST
                 | Request::HEADER_X_FORWARDED_PORT
@@ -22,10 +22,16 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         $middleware->alias([
-            'admin'=>App\Http\Middleware\AdminMiddleware::class,
+            'admin' => App\Http\Middleware\AdminMiddleware::class,
+            'customer' => App\Http\Middleware\CustomerMiddleware::class,
+            'signed.appurl' => App\Http\Middleware\ValidateAppUrlSignature::class,
+        ]);
+
+        $middleware->web(append: [
+            App\Http\Middleware\ServeProductionAssets::class,
         ]);
 
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create(); 
+    })->create();

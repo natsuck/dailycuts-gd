@@ -1,20 +1,32 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\AdminSimulationController;
+use App\Http\Controllers\AdminHeroSlideController;
 use App\Http\Controllers\AdminSaleBannerController;
+use App\Http\Controllers\AdminSimulationController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\CouponController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\Webhook\PaymongoWebhookController;
+use App\Http\Controllers\WishlistController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', [UserController::class, 'home'])->name('index');
-Route::get('/order-success', fn() => view('order_success'))->name('order.success');
+Route::get('/order-success', fn () => view('order_success'))->name('order.success');
 Route::get('/product_details/{id}', [UserController::class, 'productDetails'])->name('product_details');
 Route::get('/shop', [UserController::class, 'shop'])->name('shop');
 Route::get('/contact_us', [UserController::class, 'contactUs'])->name('contact_us');
-Route::post('/contact_us', [UserController::class, 'submitResellerInquiry'])->name('contact_us.submit');
+Route::get('/privacy-policy', fn () => view('privacy-policy'))->name('privacy.policy');
+Route::get('/terms-and-conditions', fn () => view('terms-and-conditions'))->name('terms.conditions');
+Route::get('/faq', fn () => view('faq'))->name('faq');
+Route::get('/store-policies', fn () => view('store-policies'))->name('store.policies');
+Route::post('/contact_us', [UserController::class, 'submitResellerInquiry'])
+    ->middleware('throttle:10,1')
+    ->name('contact_us.submit');
 
 Route::get('/dashboard', [UserController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -25,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/viewcart', [UserController::class, 'viewCart'])->name('viewcart');
     Route::delete('/cart/{id}', [UserController::class, 'removeCart'])->name('cart.remove');
     Route::patch('/cart/update/{id}', [UserController::class, 'updateCart'])->name('cart.update');
+    Route::patch('/cart/{id}/variant', [UserController::class, 'changeVariant'])->name('cart.changeVariant');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -32,11 +45,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/checkout/place-order', [CheckoutController::class, 'placeOrder'])->name('checkout.placeOrder');
     Route::get('/checkout/success', [CheckoutController::class, 'checkoutSuccess'])->name('checkout.success');
     Route::get('/checkout/cancel', [CheckoutController::class, 'checkoutCancel'])->name('checkout.cancel');
+    Route::get('/checkout/estimate-shipping', [CheckoutController::class, 'estimateShipping'])
+        ->middleware('throttle:30,1')
+        ->name('checkout.estimateShipping');
+    Route::post('/checkout/coupon', [CheckoutController::class, 'applyCoupon'])->name('checkout.coupon');
+    Route::delete('/checkout/coupon', [CheckoutController::class, 'removeCoupon'])->name('checkout.couponRemove');
 });
 
 Route::post('/paymongo/webhook', [PaymongoWebhookController::class, 'handle'])
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
-
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -72,7 +89,46 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::resource('/sale-banners', AdminSaleBannerController::class)
         ->names('admin.sale-banners')
         ->except(['show']);
+
+    Route::resource('/hero-slides', AdminHeroSlideController::class)
+        ->names('admin.hero-slides')
+        ->except(['show']);
 });
 
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist');
+    Route::post('/wishlist/toggle/{id}', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
+    Route::delete('/wishlist/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
+});
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index'])->name('orders.index');
+    Route::get('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'show'])->name('orders.show');
+});
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])->name('reviews.store');
+    Route::delete('/reviews/{id}', [ReviewController::class, 'destroy'])->name('reviews.destroy');
+});
+
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::resource('admin/coupons', CouponController::class)->names('admin.coupons');
+
+    Route::prefix('admin/inventory')->name('admin.inventory.')->group(function () {
+        Route::get('/', [InventoryController::class, 'index'])->name('index');
+        Route::post('/{id}/adjust', [InventoryController::class, 'adjust'])->name('adjust');
+        Route::get('/history/{id}', [InventoryController::class, 'history'])->name('history');
+        Route::get('/low-stock', [InventoryController::class, 'lowStock'])->name('lowStock');
+    });
+
+    Route::prefix('admin/reports')->name('admin.reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::get('/sales', [ReportController::class, 'salesByDate'])->name('sales');
+        Route::get('/export/csv', [ReportController::class, 'exportSalesCsv'])->name('exportCsv');
+    });
+});
 
 require __DIR__.'/auth.php';
+
+
+

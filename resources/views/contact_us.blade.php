@@ -2,54 +2,44 @@
 
 @section('contact_us')
 
-<section class="contact_section ">
-    <div class="container px-0">
-      <div class="heading_container ">
-        <h2 class="">
-          Become A Reseller
-        </h2>
-      </div>
-    </div>
-    <div class="container container-bg">
-      @if(session('resellerMessage'))
-        <div class="alert alert-success mt-3">
-          {{ session('resellerMessage') }}
-        </div>
-      @endif
+<section class="py-section-gap px-4 md:px-margin-desktop max-w-container-max mx-auto">
+  <div class="mb-10">
+    <h2 class="font-headline-md text-headline-md mb-2">Become A Reseller</h2>
+    <p class="font-body-md text-on-surface-variant">Partner with us and bring premium cuts to your customers.</p>
+  </div>
 
-      <div class="row">
-        <div class="col-lg-7 col-md-6 px-0">
-          <div class="map_container">
-            <div class="map-responsive">
-              <iframe src="https://www.google.com/maps/embed/v1/place?key=AIzaSyA0s1a7phLN0iaD6-UE7m4qP-z21pH0eSc&q=PHASE+10+Wellington+Place" width="600" height="300" frameborder="0" style="border:0; width: 100%; height:100%" allowfullscreen></iframe>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6 col-lg-5 px-0">
-          <form action="{{ route('contact_us.submit') }}" method="POST" class="p-3 p-md-4">
-            @csrf
-            <div class="mb-3">
-              <input type="text" name="name" class="form-control form-control-lg" placeholder="Name" value="{{ old('name') }}" required />
-            </div>
-            <div class="mb-3">
-              <input type="email" name="email" class="form-control form-control-lg" placeholder="Email" value="{{ old('email') }}" required />
-            </div>
-            <div class="mb-3">
-              <input type="tel" name="phone" class="form-control form-control-lg" placeholder="Phone" value="{{ old('phone') }}" />
-            </div>
-            <div class="mb-3">
-              <textarea name="message" class="form-control form-control-lg" rows="4" placeholder="Message" style="min-height: 120px;" required>{{ old('message') }}</textarea>
-            </div>
-            <div class="d-grid gap-2">
-              <button type="submit" class="btn btn-lg" style="background-color: #D2042D; color: white;">
-                SEND
-              </button>
-            </div>
-          </form>
-        </div>
-        </div>
-      </div>
+  @if(session('resellerMessage'))
+    <div class="bg-green-50 text-green-800 border border-green-200 px-6 py-4 rounded-lg mb-8 font-body-md">
+      {{ session('resellerMessage') }}
     </div>
-  </section>
-  
+  @endif
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+    <div class="lg:col-span-7 rounded-lg overflow-hidden border border-outline-variant" style="min-height: 250px;">
+      <iframe
+        src="https://www.google.com/maps/embed/v1/place?key=AIzaSyA0s1a7phLN0iaD6-UE7m4qP-z21pH0eSc&q=PHASE+10+Wellington+Place"
+        width="100%" height="100%" frameborder="0" style="border:0; min-height: 250px;" class="md:min-h-[400px]" allowfullscreen>
+      </iframe>
+    </div>
+    <div class="lg:col-span-5">
+      <form action="{{ route('contact_us.submit') }}" method="POST" class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 md:p-8">
+        @csrf
+        <div class="mb-4">
+          <input type="text" name="name" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-primary focus:border-primary outline-none" placeholder="Name" value="{{ old('name') }}" required />
+        </div>
+        <div class="mb-4">
+          <input type="email" name="email" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-primary focus:border-primary outline-none" placeholder="Email" value="{{ old('email') }}" required />
+        </div>
+        <div class="mb-4">
+          <input type="tel" name="phone" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-primary focus:border-primary outline-none" placeholder="Phone" value="{{ old('phone') }}" />
+        </div>
+        <div class="mb-6">
+          <textarea name="message" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-primary focus:border-primary outline-none resize-none" rows="4" style="min-height: 120px;" placeholder="Message" required>{{ old('message') }}</textarea>
+        </div>
+        <button type="submit" class="w-full bg-primary text-white font-bold py-3 rounded-lg uppercase tracking-widest text-label-caps hover:opacity-90 transition-all active:scale-95">Send</button>
+      </form>
+    </div>
+  </div>
+</section>
+
 @endsection

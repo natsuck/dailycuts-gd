@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('name');
             $table->text('address');
-            $table->string('city'); 
+            $table->string('city');
             $table->string('phone');
             $table->decimal('total', 10, 2);
             $table->string('status')->default('pending');

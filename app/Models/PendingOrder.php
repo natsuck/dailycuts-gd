@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PendingOrder extends Model
 {
     protected $fillable = [
-    'user_id',
-    'cart_data',
+        'user_id',
+        'cart_data',
     ];
 }

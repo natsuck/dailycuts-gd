@@ -1,3 +1,107 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: clip;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  [x-cloak] {
+    display: none !important;
+  }
+}
+
+@layer components {
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .product-card-shadow {
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.05);
+  }
+
+  .active-filter {
+    background-color: #8f000d;
+    color: #ffffff;
+  }
+
+  .sidebar-item-active {
+    background-color: rgba(178, 34, 34, 0.1);
+    color: #8f000d;
+    border-right: 4px solid #8f000d;
+  }
+
+  .white-cube-card {
+    border: 1px solid #eeeeee;
+    transition: all 0.3s ease-in-out;
+  }
+  .white-cube-card:hover {
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.05);
+  }
+
+  .cart-item-image-container {
+    aspect-ratio: 1/1;
+  }
+
+  .bento-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 24px;
+  }
+
+  .active-nav-indicator {
+    position: relative;
+  }
+  .active-nav-indicator::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 24px;
+    background-color: #8f000d;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .profile-card {
+    border: 1px solid #e2beba;
+    border-radius: 0.25rem;
+    background-color: #ffffff;
+  }
+
+  .profile-card-body {
+    padding: 1.5rem;
+  }
+}

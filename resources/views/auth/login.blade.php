@@ -1,34 +1,30 @@
 @extends('maindesign')
 
 @section('login')
-<div class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-md-6 col-lg-5">
-      <div class="bg-white p-4 rounded shadow">
-        <h2 class="text-center mb-4 fw-bold">Login</h2>
+<div class="min-h-[60vh] flex items-center justify-center px-4 md:px-margin-desktop py-12 md:py-16">
+  <div class="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-lg p-6 md:p-8 shadow-sm">
+    <h2 class="font-headline-md text-headline-md text-center mb-8">Login</h2>
 
-        <form method="POST" action="{{ route('login') }}">
-          @csrf
+    <form method="POST" action="{{ route('login') }}">
+      @csrf
 
-          <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input type="email" name="email" required class="form-control">
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Password</label>
-            <input type="password" name="password" required class="form-control">
-          </div>
-
-          <button class="btn btn-danger w-100">Login</button>
-        </form>
-
-        <p class="text-center mt-3">
-          Don't have an account?
-          <a href="{{ route('register') }}" class="text-danger fw-bold">Sign up</a>
-        </p>
+      <div class="mb-5">
+        <label class="font-label-caps text-label-caps text-on-surface-variant mb-1 block">Email</label>
+        <input type="email" name="email" required class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-primary focus:border-primary outline-none">
       </div>
-    </div>
+
+      <div class="mb-6">
+        <label class="font-label-caps text-label-caps text-on-surface-variant mb-1 block">Password</label>
+        <input type="password" name="password" required class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-body-md focus:ring-primary focus:border-primary outline-none">
+      </div>
+
+      <button type="submit" class="w-full bg-primary text-white font-bold py-3 rounded-lg uppercase tracking-widest text-label-caps hover:opacity-90 transition-all active:scale-95">Login</button>
+    </form>
+
+    <p class="text-center mt-6 font-body-md text-on-surface-variant">
+      Don't have an account?
+      <a href="{{ route('register') }}" class="text-primary font-bold hover:underline">Sign up</a>
+    </p>
   </div>
 </div>
 @endsection

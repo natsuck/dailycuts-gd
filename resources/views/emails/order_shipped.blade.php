@@ -33,13 +33,14 @@
 <br>
 
 @php
-    $delivery = 150;
+    $delivery = $order->shipping_fee ?? 0;
+    $subtotal = $order->total - $delivery;
 @endphp
 
 <table width="100%" cellpadding="5">
     <tr>
         <td>Subtotal:</td>
-        <td align="right">₱{{ number_format($order->total, 2) }}</td>
+        <td align="right">₱{{ number_format($subtotal, 2) }}</td>
     </tr>
     <tr>
         <td>Delivery Fee:</td>
@@ -48,7 +49,7 @@
     <tr>
         <td><strong>Total:</strong></td>
         <td align="right" style="color:#D2042D;">
-            <strong>₱{{ number_format($order->total + $delivery, 2) }}</strong>
+            <strong>₱{{ number_format($order->total, 2) }}</strong>
         </td>
     </tr>
 </table> 
