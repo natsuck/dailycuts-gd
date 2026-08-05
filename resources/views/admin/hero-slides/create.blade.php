@@ -15,6 +15,7 @@
         action="{{ route('admin.hero-slides.store') }}"
         method="POST"
         enctype="multipart/form-data"
+        data-submit-once
       >
         @include('admin.hero-slides._form', ['buttonText' => 'Create Slide'])
       </form>

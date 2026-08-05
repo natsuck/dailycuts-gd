@@ -33,6 +33,11 @@ class Product extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class)->withTimestamps();
+    }
+
     public function reviews()
     {
         return $this->hasMany(Review::class);
@@ -109,25 +114,30 @@ class Product extends Model
 
     public function recordInventoryChange(string $type, int $change, ?string $notes = null, ?string $refType = null, ?int $refId = null): InventoryHistory
     {
-        $before = $this->product_quantity;
+        // Lock the product row so concurrent adjustments serialize instead of
+        // racing on the current quantity (callers should wrap this in a
+        // transaction so the lock is held until commit).
+        $locked = static::whereKey($this->id)->lockForUpdate()->firstOrFail();
+        $before = $locked->product_quantity;
 
         if ($type === 'sale') {
-            $this->decrement('product_quantity', abs($change));
+            $locked->decrement('product_quantity', abs($change));
         } elseif ($type === 'restock') {
-            $this->increment('product_quantity', abs($change));
+            $locked->increment('product_quantity', abs($change));
         } elseif ($type === 'adjustment') {
-            $this->product_quantity = $change;
-            $this->save();
+            $locked->product_quantity = $change;
+            $locked->save();
         }
 
-        $this->refresh();
+        $locked->refresh();
+        $this->product_quantity = $locked->product_quantity;
 
         return InventoryHistory::create([
-            'product_id' => $this->id,
+            'product_id' => $locked->id,
             'type' => $type,
             'quantity_change' => $change,
             'quantity_before' => $before,
-            'quantity_after' => $this->product_quantity,
+            'quantity_after' => $locked->product_quantity,
             'reference_type' => $refType,
             'reference_id' => $refId,
             'notes' => $notes,

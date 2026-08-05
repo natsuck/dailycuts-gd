@@ -152,6 +152,12 @@
         </div>
     @endif
 
+    @if($errors->has('lalamove'))
+        <div class="alert alert-danger mb-4">
+            {{ $errors->first('lalamove') }}
+        </div>
+    @endif
+
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
         <div class="order-summary-text mb-3 mb-md-0">
             <h3 class="mb-1">Order Management</h3>
@@ -307,6 +313,23 @@
                                         Update
                                     </button>
                                 </form>
+
+                                @if($order->lalamove_order_id)
+                                    <div class="order-muted mt-2">
+                                        <i class="fa fa-motorcycle"></i> {{ $order->lalamove_order_id }}
+                                        @if($order->lalamove_status)
+                                            <span class="order-muted">({{ $order->lalamove_status }})</span>
+                                        @endif
+                                    </div>
+                                @elseif($order->payment_status === 'paid')
+                                    <form action="{{ route('admin.order.dispatchLalamove', $order->id) }}" method="POST" class="mt-2">
+                                        @csrf
+
+                                        <button type="submit" class="btn btn-sm btn-outline-info btn-block">
+                                            <i class="fa fa-motorcycle mr-1"></i> Dispatch to Lalamove
+                                        </button>
+                                    </form>
+                                @endif
 
                                 <form action="{{ route('admin.order.delete', $order->id) }}" method="POST" class="mt-2">
                                     @csrf

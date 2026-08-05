@@ -102,7 +102,7 @@ class AdminSaleBannerController extends Controller
     protected function storeImage(Request $request): string
     {
         $image = $request->file('image');
-        $imageName = uniqid('sale_banner_', true).'.'.$image->getClientOriginalExtension();
+        $imageName = uniqid('sale_banner_', true).'.'.$image->guessExtension();
         File::ensureDirectoryExists(storage_path('app/public/sale-banners'));
         $image->move(storage_path('app/public/sale-banners'), $imageName);
 

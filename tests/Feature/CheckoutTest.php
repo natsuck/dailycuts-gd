@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\GeocodingService;
 use Illuminate\Support\Facades\Http;
 
 function validCheckoutPayload(): array
@@ -72,6 +73,102 @@ test('placing an order reserves stock and records inventory history', function (
     expect($order->checkout_session_id)->toBe('cs_test_123');
     expect($product->fresh()->product_quantity)->toBe(3);
     expect(InventoryHistory::where('reference_id', $order->id)->where('type', 'sale')->count())->toBe(1);
+});
+
+test('resubmitting the same checkout form does not create a second order', function () {
+    Http::fake([
+        'api.paymongo.com/*' => Http::response([
+            'data' => [
+                'id' => 'cs_dup_1',
+                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_dup_1'],
+            ],
+        ], 200),
+    ]);
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $payload = validCheckoutPayload();
+    $payload['idempotency_key'] = 'key-checkout-1';
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', $payload)
+        ->assertRedirect('https://checkout.paymongo.com/cs_dup_1');
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', $payload)
+        ->assertRedirect('https://checkout.paymongo.com/cs_dup_1');
+
+    expect(Order::count())->toBe(1);
+    expect(Order::first()->checkout_session_url)->toBe('https://checkout.paymongo.com/cs_dup_1');
+    expect($product->fresh()->product_quantity)->toBe(3);
+});
+
+test('a distinct idempotency key issues a new order', function () {
+    $count = 0;
+
+    Http::fake([
+        'api.paymongo.com/*' => function (\Illuminate\Http\Client\Request $request) use (&$count) {
+            $count++;
+            $id = 'cs_key_fresh_'.$count;
+
+            return Http::response([
+                'data' => [
+                    'id' => $id,
+                    'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/'.$id],
+                ],
+            ], 200);
+        },
+    ]);
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', [...validCheckoutPayload(), 'idempotency_key' => 'key-checkout-1'])
+        ->assertRedirect('https://checkout.paymongo.com/cs_key_fresh_1');
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', [...validCheckoutPayload(), 'idempotency_key' => 'key-checkout-2'])
+        ->assertRedirect('https://checkout.paymongo.com/cs_key_fresh_2');
+
+    expect(Order::count())->toBe(2);
+    expect($product->fresh()->product_quantity)->toBe(1);
+});
+
+test('resubmitting a form for an already paid order does not create a duplicate', function () {
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'status' => 'delivered',
+        'payment_status' => 'paid',
+        'idempotency_key' => 'key-paid-1',
+    ]);
+    $product->decrement('product_quantity', 2);
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', [...validCheckoutPayload(), 'idempotency_key' => 'key-paid-1'])
+        ->assertRedirect(route('orders.show', $order->id));
+
+    expect(Order::count())->toBe(1);
+    expect($product->fresh()->product_quantity)->toBe(3);
 });
 
 test('order items record the variant used at checkout', function () {
@@ -169,7 +266,7 @@ test('paymongo failure releases reserved stock and deletes the order', function 
     expect($product->fresh()->product_quantity)->toBe(5);
 });
 
-test('cancelling checkout releases reserved stock', function () {
+test('cancelling checkout redirects without mutating the order', function () {
     $user = User::factory()->create();
     $product = Product::factory()->create(['product_quantity' => 5]);
     $order = Order::factory()->create([
@@ -188,8 +285,10 @@ test('cancelling checkout releases reserved stock', function () {
         ->get('/checkout/cancel?order_id='.$order->id)
         ->assertRedirect('/shop');
 
-    expect($order->fresh()->status)->toBe('cancelled');
-    expect($product->fresh()->product_quantity)->toBe(5);
+    // Stock is released via the payment.failed / checkout_session.expired webhook,
+    // not through the (unauthenticated, GET) cancel redirect.
+    expect($order->fresh()->status)->toBe('pending');
+    expect($product->fresh()->product_quantity)->toBe(3);
 });
 
 test('user cannot cancel another user\'s order', function () {
@@ -370,4 +469,174 @@ test('free shipping coupon makes the order shipping free', function () {
     expect((float) $order->discount)->toBe(0.0);
     expect($order->coupon_code)->toBe('FREESHIP');
     expect(CouponUsage::where('order_id', $order->id)->exists())->toBeTrue();
+});
+
+test('placing an order stores provided delivery coordinates without geocoding', function () {
+    Http::fake([
+        'api.paymongo.com/*' => Http::response([
+            'data' => [
+                'id' => 'cs_coords',
+                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_coords'],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(GeocodingService::class, function ($mock) {
+        $mock->shouldReceive('geocode')->never();
+        $mock->shouldReceive('reverseGeocode')->andReturn([
+            'address' => 'San Antonio, Springfield, NCR, Philippines',
+            'locality' => 'Springfield',
+            'region' => 'NCR',
+        ]);
+        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, San Antonio, Springfield, NCR 1234');
+    });
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $payload = validCheckoutPayload();
+    $payload['delivery_lat'] = '14.5460616';
+    $payload['delivery_lng'] = '120.9977219';
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', $payload)
+        ->assertRedirect('https://checkout.paymongo.com/cs_coords');
+
+    $order = Order::where('user_id', $user->id)->first();
+
+    expect((float) $order->delivery_lat)->toBe(14.5460616);
+    expect((float) $order->delivery_lng)->toBe(120.9977219);
+});
+
+test('placing an order ignores coordinates that do not match the address and falls back to geocoding', function () {
+    Http::fake([
+        'api.paymongo.com/*' => Http::response([
+            'data' => [
+                'id' => 'cs_coords_spoof',
+                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_coords_spoof'],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(GeocodingService::class, function ($mock) {
+        $mock->shouldReceive('reverseGeocode')->andReturn([
+            'address' => 'Somewhere, Manila, Philippines',
+            'locality' => 'Manila',
+            'region' => 'NCR',
+        ]);
+        $mock->shouldReceive('geocode')->once()->andReturn(['lat' => 14.55, 'lng' => 121.01]);
+        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, San Antonio, Springfield, NCR 1234');
+    });
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $payload = validCheckoutPayload();
+    $payload['delivery_lat'] = '14.5460616';
+    $payload['delivery_lng'] = '120.9977219';
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', $payload)
+        ->assertRedirect('https://checkout.paymongo.com/cs_coords_spoof');
+
+    $order = Order::where('user_id', $user->id)->first();
+
+    expect((float) $order->delivery_lat)->toBe(14.55);
+    expect((float) $order->delivery_lng)->toBe(121.01);
+});
+
+test('placing an order falls back to geocoding for out-of-bounds coordinates', function () {
+    Http::fake([
+        'api.paymongo.com/*' => Http::response([
+            'data' => [
+                'id' => 'cs_coords_fallback',
+                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_coords_fallback'],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(GeocodingService::class, function ($mock) {
+        $mock->shouldReceive('geocode')->once()->andReturn(['lat' => 14.55, 'lng' => 121.01]);
+        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, San Antonio, Springfield, NCR 1234');
+    });
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $payload = validCheckoutPayload();
+    $payload['delivery_lat'] = '999';
+    $payload['delivery_lng'] = '999';
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', $payload)
+        ->assertRedirect('https://checkout.paymongo.com/cs_coords_fallback');
+
+    $order = Order::where('user_id', $user->id)->first();
+
+    expect((float) $order->delivery_lat)->toBe(14.55);
+    expect((float) $order->delivery_lng)->toBe(121.01);
+});
+
+test('invalid delivery coordinates are rejected at checkout', function () {
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    $payload = validCheckoutPayload();
+    $payload['delivery_lat'] = 'not-a-number';
+
+    $this->actingAs($user)
+        ->from('/checkout')
+        ->post('/checkout/place-order', $payload)
+        ->assertSessionHasErrors('delivery_lat');
+
+    expect(Order::count())->toBe(0);
+});
+
+test('shipping estimate uses provided coordinates without geocoding', function () {
+    Http::fake();
+
+    config(['services.lalamove.key' => '', 'services.lalamove.secret' => '']);
+
+    $this->mock(GeocodingService::class, function ($mock) {
+        $mock->shouldReceive('geocode')->never();
+        $mock->shouldReceive('reverseGeocode')->andReturn([
+            'address' => 'Makati, Philippines',
+            'locality' => 'Makati',
+            'region' => 'NCR',
+        ]);
+        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, Springfield, NCR 1234');
+    });
+
+    $user = User::factory()->create();
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => Product::factory()->create(['product_price' => 100, 'product_quantity' => 5])->id,
+        'quantity' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->getJson('/checkout/estimate-shipping?city=Makati&delivery_lat=14.55&delivery_lng=121.01')
+        ->assertOk()
+        ->assertJsonStructure(['shippingFee', 'source'])
+        ->assertJson(['source' => 'flat_rate']);
 });

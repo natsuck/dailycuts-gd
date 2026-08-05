@@ -145,6 +145,7 @@
     @yield('register')
     @yield('viewcart')
     @yield('checkout')
+    @yield('store_locations')
     @yield('content')
     @yield('orders')
     @yield('profile')
@@ -183,7 +184,7 @@
         <nav class="flex flex-col gap-4">
           <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="tel:+631234567891">+63 1234567891</a>
           <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="mailto:demo@gmail.com">demo@gmail.com</a>
-          <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="https://www.google.com/maps/search/?api=1&query=PHASE+10+Wellington+Place" target="_blank" rel="noopener noreferrer">Find Our Stores</a>
+          <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="{{ route('store.locations') }}">Find Our Stores</a>
         </nav>
       </div>
       <div class="col-span-1">
@@ -234,7 +235,7 @@
     @endauth
   </nav>
 
-  <script src="{{ asset('frontend/js/jquery-3.4.1.min.js') }}"></script>
+  <script src="{{ asset('frontend/js/jquery-3.7.1.min.js') }}"></script>
   <script src="{{ asset('frontend/js/bootstrap.js') }}"></script>
   <script src="{{ asset('frontend/js/custom.js') }}"></script>
   <script>
@@ -244,6 +245,16 @@
         snackbar.classList.add("show");
         setTimeout(() => snackbar.classList.remove("show"), 2200);
       }
+
+      document.querySelectorAll('form[data-submit-once]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+          setTimeout(function () {
+            if (e.defaultPrevented) return;
+            var btn = form.querySelector('button[type="submit"]');
+            if (btn) btn.disabled = true;
+          }, 0);
+        });
+      });
     });
   </script>
 </body>

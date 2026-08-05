@@ -27,22 +27,28 @@
         }, 5000)
       },
     }"
-    class="relative min-h-[400px] w-full overflow-hidden md:min-h-[600px]"
+    class="relative min-h-[400px] w-full overflow-hidden aspect-[1920/800] md:min-h-0"
   >
     <template x-for="(slide, i) in slides" :key="i">
       <div
         class="absolute inset-0 transition-opacity duration-700 ease-in-out"
         :class="current === i ? 'opacity-100 z-10' : 'opacity-0 z-0'"
       >
-        <img
-          :alt="slide.tag"
-          loading="eager"
-          fetchpriority="high"
-          class="absolute inset-0 h-full w-full object-cover"
-          :src="slide.img"
-        />
+        <picture class="absolute inset-0 h-full w-full">
+          <source media="(max-width: 767px)" :srcset="slide.mobileImg" />
+          <img
+            :alt="slide.tag"
+            loading="eager"
+            fetchpriority="high"
+            class="absolute inset-0 h-full w-full object-cover object-center"
+            :src="slide.img"
+          />
+        </picture>
         <div
           class="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.55)_0%,rgba(0,0,0,0.35)_35%,rgba(0,0,0,0)_70%)]"
+        ></div>
+        <div
+          class="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.6)_0%,rgba(0,0,0,0.35)_50%,rgba(0,0,0,0)_100%)] md:hidden"
         ></div>
         <div class="absolute inset-0 z-10 flex items-center px-4 py-12 md:px-16 md:py-20">
           <div class="max-w-xl text-white">
@@ -113,93 +119,76 @@
       </a>
     </div>
 
-    <div class="flex flex-col gap-10 md:gap-12">
-      @php
-        $categories = [
-          'Beef' => ['route' => route('shop'), 'products' => $categoryProducts->get('Beef', collect())],
-          'Pork' => ['route' => route('shop'), 'products' => $categoryProducts->get('Pork', collect())],
-          'Chicken' => ['route' => route('shop'), 'products' => $categoryProducts->get('Chicken', collect())],
-          'Best Sellers' => ['route' => route('shop', ['category' => 'best_sellers']), 'products' => $bestSellerProducts],
-        ];
-      @endphp
+    <div x-data="carousel()" class="group/carousel relative">
+      <button
+        x-show="canScrollLeft"
+        @click="scroll('prev')"
+        class="absolute -left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-on-surface shadow-md transition-all hover:bg-surface-container-high active:scale-90 md:-left-4 md:h-10 md:w-10"
+        aria-label="Previous categories"
+        x-cloak
+      >
+        <span class="material-symbols-outlined text-lg md:text-xl">chevron_left</span>
+      </button>
 
-      @foreach ($categories as $label => $data)
-        <div x-data="carousel()" class="w-full">
-          <div class="mb-4 flex items-center justify-between md:mb-6">
-            <h3 class="font-headline-md text-headline-md">{{ $label }}</h3>
-            <a
-              href="{{ $data['route'] }}"
-              class="whitespace-nowrap text-sm font-bold text-primary underline-offset-4 transition-all hover:underline"
-            >
-              View All →
-            </a>
-          </div>
-
-          <div class="group/carousel relative">
-            <button
-              x-show="canScrollLeft"
-              @click="scroll('prev')"
-              class="absolute -left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-on-surface shadow-md transition-all hover:bg-surface-container-high active:scale-90 md:-left-4 md:h-10 md:w-10"
-              aria-label="Previous products"
-              x-cloak
-            >
-              <span class="material-symbols-outlined text-lg md:text-xl">chevron_left</span>
-            </button>
-
+      <div
+        x-ref="track"
+        class="hide-scrollbar flex snap-x snap-mandatory gap-gutter overflow-x-auto scroll-smooth"
+      >
+        @forelse ($categoryCards as $card)
+          <a
+            href="{{ $card['route'] }}"
+            class="carousel-card group w-40 flex-shrink-0 snap-start sm:w-44 md:w-48"
+          >
             <div
-              x-ref="track"
-              class="hide-scrollbar flex snap-x snap-mandatory gap-gutter overflow-x-auto scroll-smooth"
+              class="group-hover:product-card-shadow relative aspect-square overflow-hidden rounded-lg border border-outline-variant bg-surface-container-high transition-all duration-300"
             >
-              @forelse ($data['products'] as $product)
-                <a
-                  href="{{ route('product_details', $product->id) }}"
-                  class="carousel-card group w-[calc(50%-12px)] flex-shrink-0 snap-start sm:w-[calc(33.333%-16px)] md:w-[calc(25%-18px)]"
+              @if ($card['image'])
+                <img
+                  alt="{{ $card['name'] }}"
+                  class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  src="{{ asset('products/' . $card['image']) }}"
+                  loading="lazy"
+                />
+                <div
+                  class="pointer-events-none absolute inset-0 rounded-lg bg-[linear-gradient(180deg,rgba(0,0,0,0)_55%,rgba(0,0,0,0.55)_100%)]"
+                ></div>
+              @else
+                <div
+                  class="flex h-full w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-tertiary-container/40 to-secondary-container/40 p-4 text-center"
                 >
-                  <div
-                    class="group-hover:product-card-shadow aspect-square overflow-hidden rounded-lg border border-outline-variant bg-surface-container-high transition-all duration-300"
-                  >
-                    <img
-                      alt="{{ $product->product_title }}"
-                      class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      src="{{ asset('products/' . $product->product_image) }}"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div class="mt-3 md:mt-4">
-                    <p class="line-clamp-1 font-body-md text-body-md text-on-surface-variant">
-                      {{ $product->product_title }}
-                    </p>
-                    <span class="font-price-display text-price-display text-primary">
-                      ₱{{ number_format($product->product_price, 2) }}
-                    </span>
-                  </div>
-                </a>
-              @empty
-                <p class="py-8 font-body-md text-body-md text-on-surface-variant">
-                  No products available.
-                </p>
-              @endforelse
+                  <span class="material-symbols-outlined text-5xl text-primary">restaurant</span>
+                </div>
+              @endif
             </div>
+            <div class="mt-3 md:mt-4">
+              <p class="line-clamp-2 text-center font-headline-sm text-headline-sm text-on-surface">
+                {{ $card['name'] }}
+              </p>
+            </div>
+          </a>
+        @empty
+          <p class="py-8 font-body-md text-body-md text-on-surface-variant">
+            No categories available.
+          </p>
+        @endforelse
+      </div>
 
-            <button
-              x-show="canScrollRight"
-              @click="scroll('next')"
-              class="absolute -right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-on-surface shadow-md transition-all hover:bg-surface-container-high active:scale-90 md:-right-4 md:h-10 md:w-10"
-              aria-label="Next products"
-              x-cloak
-            >
-              <span class="material-symbols-outlined text-lg md:text-xl">chevron_right</span>
-            </button>
-          </div>
-        </div>
-      @endforeach
+      <button
+        x-show="canScrollRight"
+        @click="scroll('next')"
+        class="absolute -right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-on-surface shadow-md transition-all hover:bg-surface-container-high active:scale-90 md:-right-4 md:h-10 md:w-10"
+        aria-label="Next categories"
+        x-cloak
+      >
+        <span class="material-symbols-outlined text-lg md:text-xl">chevron_right</span>
+      </button>
     </div>
   </section>
 
   <section class="bg-surface-container-low py-section-gap">
     <div class="mx-auto max-w-container-max px-4 md:px-margin-desktop">
       <h2 class="mb-8 text-center font-headline-md text-headline-md md:mb-10">
-        Chef's Signature Selection
+        Korean Essentials
       </h2>
       <div class="grid grid-cols-1 gap-gutter md:grid-cols-2 lg:grid-cols-4">
         @foreach ($products as $product)
@@ -235,7 +224,7 @@
                 <span class="font-price-display text-price-display text-primary">
                   &#8369;{{ number_format($product->product_price, 2) }}
                 </span>
-                <form action="{{ route('cart.add', $product->id) }}" method="POST">
+                <form action="{{ route('cart.add', $product->id) }}" method="POST" data-submit-once>
                   @csrf
                   <button
                     type="submit"

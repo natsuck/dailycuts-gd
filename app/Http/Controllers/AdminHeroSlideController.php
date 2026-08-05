@@ -30,12 +30,16 @@ class AdminHeroSlideController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $this->validateSlide($request);
+        $validated = $this->validateSlide($request, false);
         $validated['is_active'] = $request->boolean('is_active');
         $validated['sort_order'] = (int) ($validated['sort_order'] ?? 0);
 
         if ($request->hasFile('image')) {
-            $validated['image_path'] = $this->storeImage($request);
+            $validated['image_path'] = $this->storeImage($request, 'image');
+        }
+
+        if ($request->hasFile('mobile_image')) {
+            $validated['mobile_image_path'] = $this->storeImage($request, 'mobile_image', 'mobile');
         }
 
         HeroSlide::create($validated);
@@ -54,13 +58,18 @@ class AdminHeroSlideController extends Controller
 
     public function update(Request $request, HeroSlide $heroSlide)
     {
-        $validated = $this->validateSlide($request);
+        $validated = $this->validateSlide($request, true);
         $validated['is_active'] = $request->boolean('is_active');
         $validated['sort_order'] = (int) ($validated['sort_order'] ?? 0);
 
         if ($request->hasFile('image')) {
-            $this->deleteImage($heroSlide);
-            $validated['image_path'] = $this->storeImage($request);
+            $this->deleteImage($heroSlide->image_path);
+            $validated['image_path'] = $this->storeImage($request, 'image');
+        }
+
+        if ($request->hasFile('mobile_image')) {
+            $this->deleteImage($heroSlide->mobile_image_path);
+            $validated['mobile_image_path'] = $this->storeImage($request, 'mobile_image', 'mobile');
         }
 
         $heroSlide->update($validated);
@@ -72,7 +81,8 @@ class AdminHeroSlideController extends Controller
 
     public function destroy(HeroSlide $heroSlide)
     {
-        $this->deleteImage($heroSlide);
+        $this->deleteImage($heroSlide->image_path);
+        $this->deleteImage($heroSlide->mobile_image_path);
         $heroSlide->delete();
 
         return redirect()
@@ -80,37 +90,43 @@ class AdminHeroSlideController extends Controller
             ->with('success', 'Hero slide deleted successfully.');
     }
 
-    protected function validateSlide(Request $request): array
+    protected function validateSlide(Request $request, bool $forUpdate = false): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'tag' => ['nullable', 'string', 'max:60'],
-            'heading' => ['required', 'string', 'max:120'],
+            'heading' => ['nullable', 'string', 'max:120'],
             'subheading' => ['nullable', 'string', 'max:500'],
             'cta_text' => ['nullable', 'string', 'max:40'],
             'cta_link' => ['nullable', 'url', 'max:255'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'mobile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
+
+        $validated['heading'] = $validated['heading'] ?? '';
+        $validated['subheading'] = $validated['subheading'] ?? '';
+
+        return $validated;
     }
 
-    protected function storeImage(Request $request): string
+    protected function storeImage(Request $request, string $field = 'image', string $subdir = ''): string
     {
-        $image = $request->file('image');
-        $imageName = uniqid('hero_slide_', true).'.'.$image->getClientOriginalExtension();
-        File::ensureDirectoryExists(storage_path('app/public/hero-slides'));
-        $image->move(storage_path('app/public/hero-slides'), $imageName);
+        $image = $request->file($field);
+        $imageName = uniqid('hero_slide_', true).'.'.$image->guessExtension();
+        $directory = storage_path('app/public/hero-slides/'.($subdir ? $subdir.'/' : ''));
+        File::ensureDirectoryExists($directory);
+        $image->move($directory, $imageName);
 
-        return 'storage/hero-slides/'.$imageName;
+        return 'storage/hero-slides/'.($subdir ? $subdir.'/' : '').$imageName;
     }
 
-    protected function deleteImage(HeroSlide $slide): void
+    protected function deleteImage(?string $path): void
     {
-        if (! $slide->image_path || Str::startsWith($slide->image_path, 'frontend/')) {
+        if (! $path || Str::startsWith($path, 'frontend/')) {
             return;
         }
 
-        $relativePath = Str::after($slide->image_path, 'storage/');
-        $imagePath = storage_path('app/public/hero-slides/'.$relativePath);
+        $imagePath = storage_path('app/public/'.Str::after($path, 'storage/'));
 
         if (is_file($imagePath)) {
             unlink($imagePath);

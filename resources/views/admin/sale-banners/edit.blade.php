@@ -11,7 +11,7 @@
             <strong>Banner Details</strong>
         </div>
 
-        <form action="{{ route('admin.sale-banners.update', $banner) }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('admin.sale-banners.update', $banner) }}" method="POST" enctype="multipart/form-data" data-submit-once>
             @method('PUT')
             @include('admin.sale-banners._form', ['buttonText' => 'Update Banner'])
         </form>

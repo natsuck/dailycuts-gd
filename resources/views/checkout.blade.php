@@ -23,6 +23,7 @@
 
     <form action="{{ route('checkout.placeOrder') }}" method="POST" id="checkout-form">
       @csrf
+      <input type="hidden" name="idempotency_key" value="{{ $idempotencyKey }}">
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-12">
         <div class="lg:col-span-7 space-y-12">
@@ -88,6 +89,17 @@
               Shipping Details
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="md:col-span-2">
+                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">SEARCH ADDRESS</label>
+                <input
+                  id="address-autocomplete"
+                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                  placeholder="Start typing your delivery address..."
+                  type="text"
+                  autocomplete="off"
+                >
+                <p class="text-xs text-on-surface-variant mt-1">Tip: Select a suggested address to fill in the fields below automatically.</p>
+              </div>
               <div class="md:col-span-2">
                 <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">STREET ADDRESS *</label>
                 <input
@@ -199,6 +211,10 @@
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
                 @enderror
               </div>
+              <input type="hidden" name="delivery_lat" id="delivery_lat" value="">
+              <input type="hidden" name="delivery_lng" id="delivery_lng" value="">
+              <input type="hidden" name="delivery_place_id" id="delivery_place_id" value="">
+              <input type="hidden" name="formatted_address" id="formatted_address" value="">
             </div>
           </section>
 
@@ -284,8 +300,12 @@
                       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                     </svg>
                   </span>
+                  <button type="button" id="shipping-refresh" title="Refresh delivery rate" class="ml-1 align-middle text-on-surface-variant hover:text-primary transition-colors hidden">
+                    <span class="material-symbols-outlined text-[18px]">refresh</span>
+                  </button>
                 </span>
               </div>
+              <p id="shipping-error" class="text-red-600 text-xs hidden"></p>
               <div class="flex justify-between text-on-surface pt-4 border-t border-outline-variant mt-4">
                 <span class="font-headline-md text-headline-md">Total</span>
                 <span class="font-price-display text-2xl text-primary font-bold">
@@ -321,13 +341,35 @@
   @endif
 </main>
 
+@php $mapsKey = (string) config('services.google_maps.key'); @endphp
+@if($mapsKey !== '')
+<script>
+  window.__placesApiLoaded = false;
+  window.__placesApiCallbacks = [];
+
+  window.initPlacesAutocomplete = function () {
+    window.__placesApiLoaded = true;
+    window.__placesApiCallbacks.forEach(function (fn) { fn(); });
+    window.__placesApiCallbacks = [];
+  };
+
+  window.onPlacesApiReady = function (fn) {
+    if (window.__placesApiLoaded) {
+      fn();
+    } else {
+      window.__placesApiCallbacks.push(fn);
+    }
+  };
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{ $mapsKey }}&libraries=places&callback=initPlacesAutocomplete" async defer></script>
+@endif
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var form = document.getElementById('checkout-form');
   var btn = document.getElementById('place-order-btn');
   var btnText = document.getElementById('btn-text');
   var btnSpinner = document.getElementById('btn-spinner');
-  var cityInput = document.querySelector('input[name="city"]');
   var shippingFeeDisplay = document.getElementById('shipping-fee-display');
   var shippingLoading = document.getElementById('shipping-loading');
   var shippingSource = document.getElementById('shipping-source');
@@ -341,6 +383,13 @@ document.addEventListener('DOMContentLoaded', function() {
   var couponMessage = document.getElementById('coupon-message');
   var discountRow = document.getElementById('discount-row');
   var discountAmount = document.getElementById('discount-amount');
+  var autocompleteInput = document.getElementById('address-autocomplete');
+  var deliveryLatInput = document.getElementById('delivery_lat');
+  var deliveryLngInput = document.getElementById('delivery_lng');
+  var deliveryPlaceIdInput = document.getElementById('delivery_place_id');
+  var formattedAddressInput = document.getElementById('formatted_address');
+  var shippingError = document.getElementById('shipping-error');
+  var shippingRefresh = document.getElementById('shipping-refresh');
   var debounceTimer = null;
 
   var state = {
@@ -470,40 +519,183 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  if (cityInput) {
-    cityInput.addEventListener('input', function() {
-      var city = this.value.trim();
-      if (!city) {
+  var addressInputs = [
+    document.querySelector('input[name="address"]'),
+    document.querySelector('input[name="address2"]'),
+    document.querySelector('input[name="barangay"]'),
+    document.querySelector('input[name="city"]'),
+    document.querySelector('input[name="region"]'),
+    document.querySelector('input[name="postal"]')
+  ].filter(Boolean);
+
+  var requiredFieldNames = ['email', 'first_name', 'last_name', 'address', 'barangay', 'city', 'region', 'postal', 'phone'];
+
+  function requiredFieldsFilled() {
+    return requiredFieldNames.every(function(name) {
+      var input = document.querySelector('input[name="' + name + '"]');
+      return input && input.value.trim() !== '';
+    });
+  }
+
+  function estimateShipping(immediate) {
+    if (!requiredFieldsFilled()) {
+      state.shippingFee = null;
+      shippingSource.textContent = '';
+      shippingError.classList.add('hidden');
+      shippingRefresh.classList.add('hidden');
+      renderTotals();
+      return;
+    }
+
+    clearTimeout(debounceTimer);
+    var run = function() {
+      var params = new URLSearchParams();
+      ['address', 'address2', 'barangay', 'city', 'region', 'postal'].forEach(function(name) {
+        var input = document.querySelector('input[name="' + name + '"]');
+        if (input && input.value) {
+          params.append(name, input.value);
+        }
+      });
+
+      if (deliveryLatInput && deliveryLatInput.value) {
+        params.append('delivery_lat', deliveryLatInput.value);
+      }
+      if (deliveryLngInput && deliveryLngInput.value) {
+        params.append('delivery_lng', deliveryLngInput.value);
+      }
+      if (deliveryPlaceIdInput && deliveryPlaceIdInput.value) {
+        params.append('delivery_place_id', deliveryPlaceIdInput.value);
+      }
+      if (formattedAddressInput && formattedAddressInput.value) {
+        params.append('formatted_address', formattedAddressInput.value);
+      }
+
+      shippingLoading.classList.remove('hidden');
+      shippingFeeDisplay.classList.add('opacity-50');
+
+      fetch('{{ route("checkout.estimateShipping") }}?' + params.toString(), {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.shippingFee !== null && data.shippingFee !== undefined) {
+          state.shippingFee = parseFloat(data.shippingFee);
+          shippingError.classList.add('hidden');
+          shippingSource.textContent = data.source === 'lalamove' ? '(live rate)' : '';
+          shippingRefresh.classList.remove('hidden');
+        } else {
+          state.shippingFee = null;
+          shippingSource.textContent = '';
+          shippingError.textContent = data.error || 'Unable to get a delivery rate for this address. Please try again.';
+          shippingError.classList.remove('hidden');
+          shippingRefresh.classList.remove('hidden');
+        }
+        renderTotals();
+      })
+      .catch(function() {
         state.shippingFee = null;
         shippingSource.textContent = '';
+        shippingError.textContent = 'Could not reach the delivery rate service. Please try again.';
+        shippingError.classList.remove('hidden');
+        shippingRefresh.classList.remove('hidden');
         renderTotals();
+      })
+      .finally(function() {
+        shippingLoading.classList.add('hidden');
+        shippingFeeDisplay.classList.remove('opacity-50');
+      });
+    };
+
+    if (immediate) {
+      run();
+    } else {
+      debounceTimer = setTimeout(run, 600);
+    }
+  }
+
+  function setAddressInput(name, value) {
+    var input = document.querySelector('input[name="' + name + '"]');
+    if (input) {
+      input.value = value || '';
+    }
+  }
+
+  function initAutocompleteWidget() {
+    if (!autocompleteInput || !window.google || !google.maps.places) {
+      return;
+    }
+
+    var autocomplete = new google.maps.places.Autocomplete(autocompleteInput, {
+      componentRestrictions: { country: 'PH' },
+      fields: ['address_components', 'formatted_address', 'geometry'],
+      types: ['address']
+    });
+
+    autocomplete.addListener('place_changed', function() {
+      var place = autocomplete.getPlace();
+
+      if (!place || !place.geometry) {
         return;
       }
 
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function() {
-        shippingLoading.classList.remove('hidden');
-        shippingFeeDisplay.classList.add('opacity-50');
-
-        fetch('{{ route("checkout.estimateShipping") }}?city=' + encodeURIComponent(city), {
-          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          state.shippingFee = parseFloat(data.shippingFee);
-          if (data.source === 'lalamove') {
-            shippingSource.textContent = '(live rate)';
-          } else {
-            shippingSource.textContent = '';
+      var components = {};
+      (place.address_components || []).forEach(function(component) {
+        (component.types || []).forEach(function(type) {
+          if (!components[type]) {
+            components[type] = component.long_name;
           }
-          renderTotals();
-        })
-        .catch(function() {})
-        .finally(function() {
-          shippingLoading.classList.add('hidden');
-          shippingFeeDisplay.classList.remove('opacity-50');
         });
-      }, 600);
+      });
+
+      var street = (components.street_number ? components.street_number + ' ' : '') + (components.route || '');
+      setAddressInput('address', street.trim());
+      setAddressInput('address2', '');
+      setAddressInput('barangay', components.sublocality_level_1 || components.neighborhood || components.sublocality_level_2 || '');
+      setAddressInput('city', components.locality || components.administrative_area_level_2 || '');
+      setAddressInput('region', components.administrative_area_level_1 || '');
+      setAddressInput('postal', components.postal_code || '');
+
+      deliveryLatInput.value = place.geometry.location.lat();
+      deliveryLngInput.value = place.geometry.location.lng();
+      deliveryPlaceIdInput.value = place.place_id || '';
+      formattedAddressInput.value = place.formatted_address || '';
+
+      estimateShipping();
+    });
+  }
+
+  if (typeof window.onPlacesApiReady === 'function') {
+    window.onPlacesApiReady(initAutocompleteWidget);
+  }
+
+  addressInputs.forEach(function(input) {
+    input.addEventListener('input', function() {
+      if (deliveryLatInput) {
+        deliveryLatInput.value = '';
+      }
+      if (deliveryLngInput) {
+        deliveryLngInput.value = '';
+      }
+      if (deliveryPlaceIdInput) {
+        deliveryPlaceIdInput.value = '';
+      }
+      if (formattedAddressInput) {
+        formattedAddressInput.value = '';
+      }
+      estimateShipping();
+    });
+  });
+
+  ['email', 'first_name', 'last_name', 'phone'].forEach(function(name) {
+    var input = document.querySelector('input[name="' + name + '"]');
+    if (input) {
+      input.addEventListener('input', estimateShipping);
+    }
+  });
+
+  if (shippingRefresh) {
+    shippingRefresh.addEventListener('click', function() {
+      estimateShipping(true);
     });
   }
 

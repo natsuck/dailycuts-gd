@@ -15,6 +15,8 @@ class LalamoveService
 
     private string $market;
 
+    private ?string $lastError = null;
+
     public function __construct()
     {
         $this->apiKey = config('services.lalamove.key', '');
@@ -31,16 +33,13 @@ class LalamoveService
         return $this->apiKey !== '' && $this->apiSecret !== '';
     }
 
-    public function getQuotation(float $pickupLat, float $pickupLng, string $pickupAddress, float $dropoffLat, float $dropoffLng, string $dropoffAddress, string $serviceType = 'MOTORCYCLE'): ?array
+    public function getLastError(): ?string
     {
-        if (! $this->isConfigured()) {
-            return null;
-        }
+        return $this->lastError;
+    }
 
-        $timestamp = (string) (int) (microtime(true) * 1000);
-        $requestPath = '/v3/quotations';
-        $method = 'POST';
-
+    public function getQuotation(float $pickupLat, float $pickupLng, string $pickupAddress, float $dropoffLat, float $dropoffLng, string $dropoffAddress, string $serviceType = 'MOTORCYCLE', array $item = [], array $specialRequests = ['THERMAL_BAG_1']): ?array
+    {
         $body = [
             'data' => [
                 'serviceType' => $serviceType,
@@ -64,80 +63,188 @@ class LalamoveService
             ],
         ];
 
-        $bodyJson = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $signature = $this->generateSignature($timestamp, $method, $requestPath, $bodyJson);
-
-        $logSafeBody = $this->redactBody($body);
-
-        try {
-            $response = Http::timeout(15)
-                ->withHeaders([
-                    'Authorization' => "hmac {$this->apiKey}:{$timestamp}:{$signature}",
-                    'Content-Type' => 'application/json; charset=utf-8',
-                    'Accept' => 'application/json',
-                    'MARKET' => $this->market,
-                ])
-                ->withBody($bodyJson, 'application/json')
-                ->post($this->baseUrl.$requestPath);
-
-            $data = $response->json();
-
-            if ($response->successful() && isset($data['data'])) {
-                return $data['data'];
-            }
-
-            Log::warning('Lalamove quotation failed', [
-                'status' => $response->status(),
-                'response' => $data,
-                'body_sent' => $logSafeBody,
-            ]);
-
-            return null;
-        } catch (\Exception $e) {
-            Log::error('Lalamove API error', [
-                'message' => $e->getMessage(),
-            ]);
-
-            return null;
+        if ($item !== []) {
+            $body['data']['item'] = $item;
         }
+
+        if ($specialRequests !== []) {
+            $body['data']['specialRequests'] = array_values($specialRequests);
+        }
+
+        return $this->send('POST', '/v3/quotations', $body, 'Lalamove quotation failed');
     }
 
     public function getCityInfo(string $city): ?array
+    {
+        return $this->send('GET', '/v3/cities/'.$this->market, null, 'Lalamove city info error');
+    }
+
+    public function createOrder(string $quotationId, array $sender, array $recipients): ?array
+    {
+        $body = [
+            'data' => [
+                'quotationId' => $quotationId,
+                'sender' => $sender,
+                'recipients' => $recipients,
+                'isPODEnabled' => true,
+                'partner' => config('shop.store.name', 'The Daily Cuts by GD'),
+            ],
+        ];
+
+        return $this->send('POST', '/v3/orders', $body, 'Lalamove order creation failed');
+    }
+
+    public function getOrder(string $orderId): ?array
+    {
+        return $this->send('GET', '/v3/orders/'.$orderId, null, 'Lalamove order info error');
+    }
+
+    public function updateWebhook(string $url): ?array
+    {
+        return $this->send('PATCH', '/v3/webhook', ['data' => ['url' => $url]], 'Lalamove webhook registration failed');
+    }
+
+    public function formatPhone(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+
+        if (str_starts_with($digits, '0')) {
+            return '+63'.substr($digits, 1);
+        }
+
+        if (str_starts_with($digits, '63')) {
+            return '+'.$digits;
+        }
+
+        return '+63'.$digits;
+    }
+
+    private function send(string $method, string $path, ?array $body = null, string $logLabel = 'Lalamove API error'): ?array
     {
         if (! $this->isConfigured()) {
             return null;
         }
 
         $timestamp = (string) (int) (microtime(true) * 1000);
-        $requestPath = '/v3/cities/'.$this->market;
-        $method = 'GET';
+        $bodyJson = $body === null ? '' : json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $signature = $this->generateSignature($timestamp, $method, $path, $bodyJson);
 
-        $signature = $this->generateSignature($timestamp, $method, $requestPath);
+        $maxAttempts = 3; // initial request + 2 retries for temporary failures
+        $backoffMs = 250;
 
-        try {
-            $response = Http::timeout(10)
-                ->withHeaders([
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $start = microtime(true);
+
+            try {
+                $request = Http::timeout(15)->withHeaders([
                     'Authorization' => "hmac {$this->apiKey}:{$timestamp}:{$signature}",
                     'Content-Type' => 'application/json; charset=utf-8',
                     'Accept' => 'application/json',
                     'MARKET' => $this->market,
-                ])
-                ->get($this->baseUrl.$requestPath);
+                ]);
 
-            $data = $response->json();
+                if ($body === null) {
+                    $response = $request->get($this->baseUrl.$path);
+                } else {
+                    $response = $request->withBody($bodyJson, 'application/json')->send(strtoupper($method), $this->baseUrl.$path);
+                }
 
-            if ($response->successful() && isset($data['data'])) {
-                return $data['data'];
+                $data = $response->json();
+                $durationMs = (int) ((microtime(true) - $start) * 1000);
+
+                if ($response->successful() && isset($data['data'])) {
+                    Log::info('Lalamove API request succeeded', [
+                        'method' => $method,
+                        'path' => $path,
+                        'status' => $response->status(),
+                        'duration_ms' => $durationMs,
+                        'attempt' => $attempt,
+                    ]);
+
+                    return $data['data'];
+                }
+
+                $this->lastError = $this->errorMessage($data, $response->status());
+
+                Log::warning($logLabel, [
+                    'status' => $response->status(),
+                    'response' => $data,
+                    'body_sent' => $body === null ? null : $this->redactBody($body),
+                    'attempt' => $attempt,
+                ]);
+
+                if ($this->isRetryableStatus($response->status()) && $attempt < $maxAttempts) {
+                    usleep($backoffMs * 1000);
+                    $backoffMs *= 2;
+
+                    continue;
+                }
+
+                return null;
+            } catch (\Exception $e) {
+                $this->lastError = $e->getMessage();
+
+                // Network/timeout failures are transient — retry before giving up.
+                if ($attempt < $maxAttempts) {
+                    Log::warning($logLabel, [
+                        'message' => $e->getMessage(),
+                        'attempt' => $attempt,
+                    ]);
+
+                    usleep($backoffMs * 1000);
+                    $backoffMs *= 2;
+
+                    continue;
+                }
+
+                Log::error($logLabel, [
+                    'message' => $e->getMessage(),
+                    'method' => $method,
+                    'path' => $path,
+                ]);
+
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Retry only on temporary upstream failures; never on client/auth errors.
+     */
+    private function isRetryableStatus(int $status): bool
+    {
+        return in_array($status, [429, 500, 502, 503, 504], true);
+    }
+
+    private function errorMessage(?array $data, int $status): string
+    {
+        $data = is_array($data) ? $data : [];
+
+        $messages = [];
+
+        foreach ($data['errors'] ?? [] as $error) {
+            if (! is_array($error)) {
+                continue;
             }
 
-            return null;
-        } catch (\Exception $e) {
-            Log::error('Lalamove city info error', [
-                'message' => $e->getMessage(),
-            ]);
+            $id = $error['id'] ?? null;
+            $message = $error['message'] ?? null;
 
-            return null;
+            if ($message !== null) {
+                $messages[] = $id !== null ? $id.': '.$message : $message;
+            }
         }
+
+        if ($messages !== []) {
+            return implode(' | ', $messages);
+        }
+
+        $id = data_get($data, 'errors.id') ?? data_get($data, 'error.code') ?? null;
+        $message = data_get($data, 'errors.message') ?? data_get($data, 'error.message') ?? data_get($data, 'message') ?? 'HTTP '.$status;
+
+        return $id !== null ? $id.': '.$message : $message;
     }
 
     private function generateSignature(string $timestamp, string $method, string $path, string $body = ''): string

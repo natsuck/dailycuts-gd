@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Review;
 use Illuminate\Http\Request;
@@ -18,6 +19,21 @@ class ReviewController extends Controller
         ]);
 
         $product = Product::findOrFail($productId);
+
+        $purchased = OrderItem::query()
+            ->where('product_id', $product->id)
+            ->whereHas('order', function ($query) {
+                $query->where('user_id', Auth::id())
+                    ->where('payment_status', 'paid')
+                    ->where('status', '!=', 'cancelled');
+            })
+            ->exists();
+
+        if (! $purchased) {
+            return redirect()
+                ->route('product_details', $product->id)
+                ->withErrors(['review' => 'You can only review a product you have purchased.']);
+        }
 
         Review::updateOrCreate(
             ['user_id' => Auth::id(), 'product_id' => $product->id],

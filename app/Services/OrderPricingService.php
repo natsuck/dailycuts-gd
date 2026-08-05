@@ -21,30 +21,103 @@ class OrderPricingService
         return $this->lastShippingSource;
     }
 
-    public function shippingFee(?string $city = null): float
+    public function lalamoveConfigured(): bool
     {
-        if ($city && $this->lalamove->isConfigured()) {
-            $pickup = $this->nearestBranch($city);
+        return $this->lalamove->isConfigured();
+    }
 
-            $matchedCityCoords = $this->matchCityCoords($city);
+    public function lastQuotationError(): ?string
+    {
+        return $this->lalamove->getLastError();
+    }
 
-            if ($pickup && $matchedCityCoords) {
-                $quote = $this->lalamove->getQuotation(
-                    pickupLat: $pickup['lat'],
-                    pickupLng: $pickup['lng'],
-                    pickupAddress: $pickup['address'],
-                    dropoffLat: $matchedCityCoords['lat'],
-                    dropoffLng: $matchedCityCoords['lng'],
-                    dropoffAddress: $city.', Philippines',
-                    serviceType: config('shop.shipping.lalamove_service_type', 'MOTORCYCLE'),
-                );
+    /**
+     * The fixed pickup location used as the origin for every delivery.
+     *
+     * Admin-managed store location wins; config/.env warehouse is the fallback.
+     */
+    public function warehouse(): ?array
+    {
+        $location = \App\Models\StoreLocation::pickup()->active()->first();
 
-                if ($quote && isset($quote['priceBreakdown']['total'])) {
-                    $this->lastShippingSource = 'lalamove';
+        if ($location) {
+            return [
+                'name' => $location->name,
+                'phone' => $location->phone,
+                'address' => $location->fullAddress(),
+                'lat' => $location->lat,
+                'lng' => $location->lng,
+            ];
+        }
 
-                    return (float) $quote['priceBreakdown']['total'] / 100;
-                }
-            }
+        $warehouse = config('shop.store.warehouse', []);
+
+        if (isset($warehouse['lat'], $warehouse['lng'], $warehouse['address'])) {
+            return $warehouse;
+        }
+
+        return config('shop.store.branches')[0] ?? null;
+    }
+
+    public function itemPayload(Collection $items, int $defaultQuantity = 1): array
+    {
+        $quantity = (int) $items->sum('quantity');
+
+        if ($quantity < 1) {
+            $quantity = $defaultQuantity;
+        }
+
+        return [
+            'quantity' => (string) $quantity,
+            'weight' => config('shop.shipping.lalamove_item_weight', 'LESS_THAN_20_KG'),
+            'categories' => config('shop.shipping.lalamove_item_categories', ['FOOD_AND_BEVERAGES']),
+            'handlingInstructions' => config('shop.shipping.lalamove_item_handling', ['KEEP_DRY']),
+        ];
+    }
+
+    public function quotationForCity(?string $city, ?array $item = null, ?array $specialRequests = null, ?float $dropoffLat = null, ?float $dropoffLng = null, ?string $dropoffAddress = null): ?array
+    {
+        if (! $city || ! $this->lalamove->isConfigured()) {
+            return null;
+        }
+
+        $pickup = $this->warehouse() ?? $this->nearestBranch($city);
+
+        if (! $pickup) {
+            return null;
+        }
+
+        if ($dropoffLat !== null && $dropoffLng !== null) {
+            $dropoff = ['lat' => $dropoffLat, 'lng' => $dropoffLng];
+        } else {
+            $dropoff = $this->matchCityCoords($city);
+        }
+
+        if (! $dropoff) {
+            return null;
+        }
+
+        return $this->lalamove->getQuotation(
+            pickupLat: $pickup['lat'],
+            pickupLng: $pickup['lng'],
+            pickupAddress: $pickup['address'],
+            dropoffLat: $dropoff['lat'],
+            dropoffLng: $dropoff['lng'],
+            dropoffAddress: $dropoffAddress ?? $city.', Philippines',
+            serviceType: config('shop.shipping.lalamove_service_type', 'MOTORCYCLE'),
+            item: $item ?? $this->itemPayload(collect()),
+            specialRequests: $specialRequests ?? config('shop.shipping.lalamove_special_requests', ['THERMAL_BAG_1']),
+        );
+    }
+
+    public function shippingFee(?string $city = null, ?float $dropoffLat = null, ?float $dropoffLng = null, ?string $dropoffAddress = null): float
+    {
+        $quote = $this->quotationForCity($city, null, null, $dropoffLat, $dropoffLng, $dropoffAddress);
+
+        if ($quote && isset($quote['priceBreakdown']['total'])) {
+            $this->lastShippingSource = 'lalamove';
+
+            return (float) $quote['priceBreakdown']['total'];
         }
 
         $this->lastShippingSource = 'flat_rate';
@@ -71,9 +144,13 @@ class OrderPricingService
         return $this->totalsFromSubtotal($this->subtotal($items), $city, $coupon);
     }
 
-    public function totalsFromSubtotal(float $subtotal, ?string $city = null, ?Coupon $coupon = null): array
+    /**
+     * Build order totals from a known subtotal and shipping fee.
+     * Used when the caller already has a live quotation and wants to avoid
+     * issuing a second Lalamove request.
+     */
+    public function totals(float $subtotal, float $shippingFee, ?Coupon $coupon = null): array
     {
-        $shippingFee = $this->shippingFee($city);
         $discount = 0.0;
         $freeShipping = false;
 
@@ -89,13 +166,18 @@ class OrderPricingService
         return [
             'subtotal' => round($subtotal, 2),
             'discount' => round($discount, 2),
-            'shippingFee' => $shippingFee,
+            'shippingFee' => round($shippingFee, 2),
             'freeShipping' => $freeShipping,
             'grandTotal' => round($subtotal - $discount + $shippingFee, 2),
         ];
     }
 
-    private function nearestBranch(string $city): ?array
+    public function totalsFromSubtotal(float $subtotal, ?string $city = null, ?Coupon $coupon = null): array
+    {
+        return $this->totals($subtotal, $this->shippingFee($city), $coupon);
+    }
+
+    public function nearestBranch(string $city): ?array
     {
         $branches = config('shop.store.branches', []);
 
@@ -130,7 +212,7 @@ class OrderPricingService
     private function matchCityCoords(string $input): ?array
     {
         $normalized = strtolower(trim($input));
-        $cities = config('shop.metro_manila_cities', []);
+        $cities = config('shop.coverage_cities', []);
 
         foreach ($cities as $cityName => $coords) {
             if (strtolower($cityName) === $normalized) {

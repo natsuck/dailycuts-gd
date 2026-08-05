@@ -132,7 +132,7 @@
                 @endif
               </div>
               <div class="flex items-center gap-2">
-                <form action="{{ route('cart.add', $product->id) }}" method="POST" class="w-full">
+                <form action="{{ route('cart.add', $product->id) }}" method="POST" class="w-full" data-submit-once>
                   @csrf
                   @if($hasVariants)
                     <input type="hidden" name="variant_id" value="{{ $firstVariant->id }}">

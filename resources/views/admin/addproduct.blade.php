@@ -17,7 +17,7 @@
     @endif
 
     <div class="container-fluid">
-        <form action="{{ route('admin.postaddproduct') }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('admin.postaddproduct') }}" method="POST" enctype="multipart/form-data" data-submit-once>
             @csrf
 
             <div class="row">
@@ -44,6 +44,20 @@
                                     @endforeach
                                 </select>
                                 @error('product_category')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="form-group mb-3">
+                                <label><strong>Additional Categories</strong></label>
+                                <div class="border rounded p-3" style="max-height: 180px; overflow-y: auto;">
+                                    @foreach($categories as $category)
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="categories[]" value="{{ $category->id }}" id="category_{{ $category->id }}" {{ (is_array(old('categories')) && in_array($category->id, old('categories'))) ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="category_{{ $category->id }}">{{ $category->category }}</label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <small class="text-muted">Products can belong to multiple categories. The primary category above is always included.</small>
+                                @error('categories')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                @error('categories.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
                             <div class="form-group mb-3">
                                 <label><strong>Product Type</strong></label>

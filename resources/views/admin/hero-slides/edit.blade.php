@@ -15,9 +15,10 @@
         action="{{ route('admin.hero-slides.update', $slide) }}"
         method="POST"
         enctype="multipart/form-data"
+        data-submit-once
       >
         @method('PUT')
-        @include('admin.hero-slides._form', ['buttonText' => 'Update Slide'])
+        @include('admin.hero-slides._form', ['buttonText' => 'Update Slide', 'isUpdate' => true])
       </form>
     </div>
   </div>

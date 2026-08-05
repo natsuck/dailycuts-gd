@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminHeroSlideController;
 use App\Http\Controllers\AdminSaleBannerController;
 use App\Http\Controllers\AdminSimulationController;
+use App\Http\Controllers\AdminStoreLocationController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\InventoryController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\Webhook\LalamoveWebhookController;
 use App\Http\Controllers\Webhook\PaymongoWebhookController;
 use App\Http\Controllers\WishlistController;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +22,7 @@ Route::get('/order-success', fn () => view('order_success'))->name('order.succes
 Route::get('/product_details/{id}', [UserController::class, 'productDetails'])->name('product_details');
 Route::get('/shop', [UserController::class, 'shop'])->name('shop');
 Route::get('/contact_us', [UserController::class, 'contactUs'])->name('contact_us');
+Route::get('/find-our-stores', [UserController::class, 'storeLocations'])->name('store.locations');
 Route::get('/privacy-policy', fn () => view('privacy-policy'))->name('privacy.policy');
 Route::get('/terms-and-conditions', fn () => view('terms-and-conditions'))->name('terms.conditions');
 Route::get('/faq', fn () => view('faq'))->name('faq');
@@ -32,7 +35,7 @@ Route::get('/dashboard', [UserController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'customer'])->group(function () {
     Route::post('/cart/{id}', [UserController::class, 'addToCart'])->name('cart.add');
     Route::get('/viewcart', [UserController::class, 'viewCart'])->name('viewcart');
     Route::delete('/cart/{id}', [UserController::class, 'removeCart'])->name('cart.remove');
@@ -40,7 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/cart/{id}/variant', [UserController::class, 'changeVariant'])->name('cart.changeVariant');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'customer'])->group(function () {
     Route::get('/checkout', [CheckoutController::class, 'checkout'])->name('checkout');
     Route::post('/checkout/place-order', [CheckoutController::class, 'placeOrder'])->name('checkout.placeOrder');
     Route::get('/checkout/success', [CheckoutController::class, 'checkoutSuccess'])->name('checkout.success');
@@ -52,7 +55,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/checkout/coupon', [CheckoutController::class, 'removeCoupon'])->name('checkout.couponRemove');
 });
 
+Route::get('/paymongo/webhook', fn () => response()->json(['status' => 'ok']));
+
 Route::post('/paymongo/webhook', [PaymongoWebhookController::class, 'handle'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
+Route::post('/lalamove/webhook', [LalamoveWebhookController::class, 'handle'])
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 Route::middleware('auth')->group(function () {
@@ -79,6 +87,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     Route::get('/view_orders', [AdminController::class, 'viewOrders'])->name('admin.vieworders');
     Route::patch('/view_orders/{id}/status', [AdminController::class, 'updateStatus'])->name('admin.order.updateStatus');
+    Route::post('/view_orders/{id}/dispatch-lalamove', [AdminController::class, 'dispatchToLalamove'])->name('admin.order.dispatchLalamove');
     Route::delete('/view_orders/{id}', [AdminController::class, 'deleteOrder'])->name('admin.order.delete');
 
     Route::get('/simulation-dashboard', [AdminSimulationController::class, 'dashboard'])->name('admin.simulation.dashboard');
@@ -93,22 +102,31 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::resource('/hero-slides', AdminHeroSlideController::class)
         ->names('admin.hero-slides')
         ->except(['show']);
+
+    Route::resource('/store-locations', AdminStoreLocationController::class)
+        ->names('admin.store-locations')
+        ->except(['show']);
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'customer'])->group(function () {
     Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist');
     Route::post('/wishlist/toggle/{id}', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
     Route::delete('/wishlist/{id}', [WishlistController::class, 'destroy'])->name('wishlist.destroy');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'customer'])->group(function () {
     Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'show'])->name('orders.show');
+    Route::get('/orders/{id}/lalamove-status', [\App\Http\Controllers\OrderController::class, 'lalamoveStatus'])->name('orders.lalamoveStatus');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])->name('reviews.store');
-    Route::delete('/reviews/{id}', [ReviewController::class, 'destroy'])->name('reviews.destroy');
+Route::middleware(['auth', 'verified', 'customer'])->group(function () {
+    Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('reviews.store');
+    Route::delete('/reviews/{id}', [ReviewController::class, 'destroy'])
+        ->middleware('throttle:10,1')
+        ->name('reviews.destroy');
 });
 
 Route::middleware(['auth', 'admin'])->group(function () {

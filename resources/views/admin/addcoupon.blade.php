@@ -22,7 +22,7 @@
             <h5 class="card-title mb-0">Create New Coupon</h5>
         </div>
         <div class="card-body">
-            <form action="{{ route('admin.coupons.store') }}" method="POST">
+            <form action="{{ route('admin.coupons.store') }}" method="POST" data-submit-once>
                 @csrf
 
                 <div class="row">

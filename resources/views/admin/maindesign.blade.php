@@ -182,6 +182,16 @@
             </a>
           </li>
         </ul>
+
+        <span class="heading">Settings</span>
+        <ul class="list-unstyled">
+          <li class="{{ request()->routeIs('admin.store-locations.*') ? 'active' : '' }}">
+            <a href="{{ route('admin.store-locations.index') }}">
+              <i class="fa fa-map-marker"></i>
+              Store Locations
+            </a>
+          </li>
+        </ul>
       </nav>
 
       <div class="page-content admin-content">
@@ -237,6 +247,17 @@
     <script src="{{ asset('admin/vendor/jquery-validation/jquery.validate.min.js') }}"></script>
     <script src="{{ asset('admin/js/charts-home.js') }}"></script>
     <script src="{{ asset('admin/js/front.js') }}"></script>
+    <script>
+      document.querySelectorAll('form[data-submit-once]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+          setTimeout(function () {
+            if (e.defaultPrevented) return;
+            var btn = form.querySelector('button[type="submit"]');
+            if (btn) btn.disabled = true;
+          }, 0);
+        });
+      });
+    </script>
     @stack('scripts')
   </body>
 </html>

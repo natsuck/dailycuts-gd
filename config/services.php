@@ -40,6 +40,30 @@ return [
         'secret' => env('LALAMOVE_API_SECRET'),
         'market' => env('LALAMOVE_MARKET', 'PH'),
         'sandbox' => (bool) env('LALAMOVE_SANDBOX', true),
+        'webhook_url' => env('LALAMOVE_WEBHOOK_URL'),
+    ],
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+
+    'facebook' => [
+        'client_id' => env('FACEBOOK_CLIENT_ID'),
+        'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
+        'redirect' => env('FACEBOOK_REDIRECT_URI'),
+    ],
+
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
+    'geocoder' => [
+        'providers' => env('GEOCODER_PROVIDERS', 'google,photon,nominatim'),
+        'photon_url' => env('PHOTON_GEOCODING_URL', 'https://photon.komoot.io/api'),
+        'nominatim_url' => env('NOMINATIM_GEOCODING_URL', 'https://nominatim.openstreetmap.org/search'),
+        'nominatim_ua' => env('NOMINATIM_USER_AGENT', 'TheDailyCutsByGD/1.0'),
     ],
 
 ];

@@ -34,7 +34,7 @@
         </div>
 
         @if($product->hasVariants())
-          <p id="variantPrice" class="font-price-display text-price-display text-primary">&#8369;{{ number_format($product->variants->first()->price, 2) }} <span class="text-on-surface-variant text-body-md font-normal">/ {{ $product->variants->first()->weight }}</span></p>
+          <p id="variantPrice" class="font-price-display text-price-display text-primary"><span id="variantPriceValue">&#8369;{{ number_format($product->variants->first()->price, 2) }}</span> <span id="variantWeight" class="text-on-surface-variant text-body-md font-normal">/ {{ $product->variants->first()->weight }}</span></p>
           <p id="variantStock" class="text-tertiary font-body-sm text-body-sm mt-1">{{ $product->variants->first()->quantity }} in stock</p>
         @else
           <p class="font-price-display text-price-display text-primary">&#8369;{{ number_format($product->product_price, 2) }} <span class="text-on-surface-variant text-body-md font-normal">/ item</span></p>
@@ -71,7 +71,7 @@
       @endif
 
       <div class="flex gap-3">
-        <form action="{{ route('cart.add', $product->id) }}" method="POST" class="flex flex-col sm:flex-row gap-4 flex-1">
+        <form action="{{ route('cart.add', $product->id) }}" method="POST" class="flex flex-col sm:flex-row gap-4 flex-1" data-submit-once>
           @csrf
           @if($product->hasVariants())
             <input type="hidden" name="variant_id" id="cartVariantId" value="{{ $product->variants->first()->id }}">
@@ -255,7 +255,7 @@
                 @endif
               </div>
               <div class="flex items-center gap-2">
-                <form action="{{ route('cart.add', $related->id) }}" method="POST" class="w-full">
+                <form action="{{ route('cart.add', $related->id) }}" method="POST" class="w-full" data-submit-once>
                   @csrf
                   @if($pHasVariants)
                     <input type="hidden" name="variant_id" value="{{ $pFirstVariant->id }}">
@@ -300,7 +300,8 @@
     const weight = btn.dataset.weight;
     const variantId = btn.dataset.id;
 
-    document.getElementById('variantPrice').innerHTML = '&#8369;' + price + ' <span class="text-on-surface-variant text-body-md font-normal">/ ' + weight + '</span>';
+    document.getElementById('variantPriceValue').textContent = '₱' + price;
+    document.getElementById('variantWeight').textContent = '/ ' + weight;
     document.getElementById('variantStock').textContent = stock + ' in stock';
 
     var cartVariantInput = document.getElementById('cartVariantId');

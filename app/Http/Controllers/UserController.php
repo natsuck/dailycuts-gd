@@ -28,32 +28,53 @@ class UserController extends Controller
         $products = Product::latest()->take(8)->get();
         $reviews = Review::with('user')->latest()->take(3)->get();
 
-        $categoryProducts = Product::whereIn('product_category', ['Beef', 'Pork', 'Chicken'])
+        $categoryImages = collect();
+        Product::with('categories')
             ->whereNotNull('product_image')
             ->get()
-            ->groupBy('product_category');
+            ->each(function ($product) use (&$categoryImages) {
+                $names = $product->categories->isNotEmpty()
+                    ? $product->categories->pluck('category')
+                    : collect([$product->product_category]);
 
-        $bestSellerIds = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
+                foreach ($names->filter() as $name) {
+                    $categoryImages->put($name, $categoryImages->get($name) ?? $product->product_image);
+                }
+            });
+
+        $categoryCards = Category::orderBy('id')->pluck('category')
+            ->filter()
+            ->map(fn ($category) => [
+                'name' => $category,
+                'image' => $categoryImages->get($category),
+                'route' => route('shop', ['category' => $category]),
+            ])
+            ->values();
+
+        $bestSellerId = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
             ->join('products', 'products.id', '=', 'order_items.product_id')
             ->where('orders.status', '!=', 'cancelled')
             ->whereNotNull('products.product_image')
             ->select('order_items.product_id', \DB::raw('SUM(order_items.quantity) as total_sold'))
             ->groupBy('order_items.product_id')
             ->orderByDesc('total_sold')
-            ->limit(8)
-            ->pluck('product_id');
+            ->first();
 
-        $bestSellerProducts = $bestSellerIds->isNotEmpty()
-            ? Product::whereIn('id', $bestSellerIds)
-                ->orderByRaw('FIELD(id,'.$bestSellerIds->implode(',').')')
-                ->get()
-            : collect();
+        $bestSellerCard = $bestSellerId
+            ? [
+                'name' => 'Best Sellers',
+                'image' => Product::whereKey($bestSellerId->product_id)->value('product_image'),
+                'route' => route('shop', ['category' => 'best_sellers']),
+            ]
+            : null;
 
-        $bestSeller = $bestSellerProducts->first();
+        $categoryCards = $bestSellerCard
+            ? collect([$bestSellerCard])->concat($categoryCards)
+            : $categoryCards;
 
         $slides = $this->buildHeroSlides();
 
-        return view('index', compact('products', 'count', 'reviews', 'bestSeller', 'categoryProducts', 'bestSellerProducts', 'slides'));
+        return view('index', compact('products', 'count', 'reviews', 'categoryCards', 'slides'));
     }
 
     protected function buildHeroSlides(): array
@@ -61,6 +82,7 @@ class UserController extends Controller
         $defaults = [
             [
                 'img' => asset('frontend/images/2222.jpeg'),
+                'mobileImg' => asset('frontend/images/mobile-hero.jpg'),
                 'tag' => 'EXCLUSIVE DAILY CUTS',
                 'heading' => 'Masterpieces of freshness, cut daily for your table.',
                 'sub' => 'Premium beef, pork, and chicken from trusted local suppliers, packed clean and delivered with care.',
@@ -69,6 +91,7 @@ class UserController extends Controller
             ],
             [
                 'img' => asset('frontend/images/banners.png'),
+                'mobileImg' => asset('frontend/images/mobile-hero.jpg'),
                 'tag' => 'WEEKLY SPECIALS',
                 'heading' => 'Premium cuts at unbeatable prices every week.',
                 'sub' => 'Discover hand-selected deals on our finest meats. Fresh, affordable, and delivered to your door.',
@@ -77,6 +100,7 @@ class UserController extends Controller
             ],
             [
                 'img' => asset('frontend/images/banners.png'),
+                'mobileImg' => asset('frontend/images/mobile-hero.jpg'),
                 'tag' => 'ORDER NOW',
                 'heading' => 'Premium Frozen Meats Delivered Fresh Daily',
                 'sub' => 'Samgyupsal Meat • Steak • Wagyu • Wholesale & Retail',
@@ -100,6 +124,9 @@ class UserController extends Controller
 
         return $slides->map(fn ($slide) => [
             'img' => asset($slide->image_path),
+            'mobileImg' => $slide->mobile_image_path
+                ? asset($slide->mobile_image_path)
+                : asset('frontend/images/mobile-hero.jpg'),
             'tag' => $slide->tag,
             'heading' => $slide->heading,
             'sub' => $slide->subheading,
@@ -120,6 +147,19 @@ class UserController extends Controller
     public function contactUs()
     {
         return view('contact_us');
+    }
+
+    public function storeLocations()
+    {
+        $locations = \App\Models\StoreLocation::active()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return view('store_locations', [
+            'locations' => $locations,
+            'mapsKey' => (string) config('services.google_maps.key'),
+        ]);
     }
 
     public function submitResellerInquiry(Request $request)
@@ -182,7 +222,10 @@ class UserController extends Controller
                     ->orderByRaw('FIELD(products.id, '.implode(',', $bestSellerIds).')');
             }
         } elseif ($category) {
-            $query->where('product_category', $category);
+            $query->where(function ($q) use ($category) {
+                $q->where('product_category', $category)
+                    ->orWhereHas('categories', fn ($cq) => $cq->where('categories.category', $category));
+            });
         }
 
         $sortBy = $request->input('sort', $category === 'best_sellers' ? 'best_sellers' : 'latest');

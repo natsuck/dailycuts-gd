@@ -45,6 +45,20 @@
                                 @error('product_category')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="form-group mb-3">
+                                <label><strong>Additional Categories</strong></label>
+                                <div class="border rounded p-3" style="max-height: 180px; overflow-y: auto;">
+                                    @foreach($categories as $category)
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="categories[]" value="{{ $category->id }}" id="category_{{ $category->id }}" {{ (is_array(old('categories')) ? in_array($category->id, old('categories')) : $product->categories->contains($category->id)) ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="category_{{ $category->id }}">{{ $category->category }}</label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <small class="text-muted">Products can belong to multiple categories. The primary category above is always included.</small>
+                                @error('categories')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                @error('categories.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="form-group mb-3">
                                 <label><strong>Product Type</strong></label>
                                 <select name="product_type" class="form-control @error('product_type') is-invalid @enderror">
                                     <option value="fresh" {{ old('product_type', $product->product_type) === 'fresh' ? 'selected' : '' }}>Fresh</option>

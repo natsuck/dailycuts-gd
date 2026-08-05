@@ -2,6 +2,8 @@
 
 @section('content')
 
+@php $storeLocation = \App\Models\StoreLocation::activePickup(); @endphp
+
 <main class="max-w-container-max mx-auto px-4 md:px-margin-desktop py-8 md:py-12">
   <div class="max-w-3xl mx-auto">
 
@@ -109,7 +111,7 @@
         <p class="text-on-surface-variant">The Daily Cuts by GD is a registered business operating in the Philippines. Registration details available upon request.</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
           <li><strong>Business Name:</strong> The Daily Cuts by GD</li>
-          <li><strong>Address:</strong> Phase 10, Wellington Place</li>
+          <li><strong>Address:</strong> {{ $storeLocation?->fullAddress() ?? 'Phase 10, Wellington Place' }}</li>
           <li><strong>Email:</strong> <a href="mailto:nathanielquirino3210@gmail.com" class="text-primary hover:underline">nathanielquirino3210@gmail.com</a></li>
           <li><strong>Phone:</strong> <a href="tel:+631234567891" class="text-primary hover:underline">+63 1234567891</a></li>
           <li><strong>DTI/SEC Registration Number:</strong> <em>To be added</em></li>

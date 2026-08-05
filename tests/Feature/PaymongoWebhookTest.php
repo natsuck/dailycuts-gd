@@ -15,6 +15,26 @@ function buildWebhookSignature(string $rawPayload, string $secret = 'test_secret
     ];
 }
 
+function paymentPaidPayload(Order $order, array $overrides = []): array
+{
+    return array_replace_recursive([
+        'data' => [
+            'attributes' => [
+                'type' => 'payment.paid',
+                'data' => [
+                    'id' => 'pay_123',
+                    'attributes' => [
+                        'amount' => (int) round((float) $order->total * 100),
+                        'currency' => 'PHP',
+                        'metadata' => ['order_id' => $order->id],
+                        'source' => ['type' => 'card'],
+                    ],
+                ],
+            ],
+        ],
+    ], $overrides);
+}
+
 test('webhook is rejected when no webhook secret is configured', function () {
     config(['paymongo.webhook_secret' => '']);
 
@@ -76,25 +96,13 @@ test('payment.paid marks the order paid and clears the cart', function () {
     $user = User::factory()->create();
     $order = Order::factory()->create([
         'user_id' => $user->id,
+        'total' => 1500,
         'status' => 'pending',
         'payment_status' => 'unpaid',
     ]);
     Cart::factory()->create(['user_id' => $user->id]);
 
-    $payload = [
-        'data' => [
-            'attributes' => [
-                'type' => 'payment.paid',
-                'data' => [
-                    'id' => 'pay_123',
-                    'attributes' => [
-                        'metadata' => ['order_id' => $order->id],
-                        'source' => ['type' => 'card'],
-                    ],
-                ],
-            ],
-        ],
-    ];
+    $payload = paymentPaidPayload($order);
 
     $this->postJson('/paymongo/webhook', $payload, buildWebhookSignature(json_encode($payload)))
         ->assertOk()
@@ -107,12 +115,77 @@ test('payment.paid marks the order paid and clears the cart', function () {
     expect(Cart::where('user_id', $user->id)->count())->toBe(0);
 });
 
+test('payment.paid is ignored when the paid amount does not match the order total', function () {
+    config(['paymongo.webhook_secret' => 'test_secret']);
+
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'total' => 1500,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+    ]);
+
+    $payload = paymentPaidPayload($order, [
+        'data' => ['attributes' => ['data' => ['attributes' => ['amount' => 1]]]],
+    ]);
+
+    $this->postJson('/paymongo/webhook', $payload, buildWebhookSignature(json_encode($payload)))
+        ->assertOk();
+
+    expect($order->refresh()->payment_status)->toBe('unpaid');
+});
+
+test('payment.paid is ignored when the currency is not PHP', function () {
+    config(['paymongo.webhook_secret' => 'test_secret']);
+
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'total' => 1500,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+    ]);
+
+    $payload = paymentPaidPayload($order, [
+        'data' => ['attributes' => ['data' => ['attributes' => ['currency' => 'USD']]]],
+    ]);
+
+    $this->postJson('/paymongo/webhook', $payload, buildWebhookSignature(json_encode($payload)))
+        ->assertOk();
+
+    expect($order->refresh()->payment_status)->toBe('unpaid');
+});
+
+test('payment.paid is ignored when the checkout session id does not match', function () {
+    config(['paymongo.webhook_secret' => 'test_secret']);
+
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'total' => 1500,
+        'checkout_session_id' => 'cs_test_abc',
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+    ]);
+
+    $payload = paymentPaidPayload($order, [
+        'data' => ['attributes' => ['data' => ['attributes' => ['checkout_session_id' => 'cs_other']]]],
+    ]);
+
+    $this->postJson('/paymongo/webhook', $payload, buildWebhookSignature(json_encode($payload)))
+        ->assertOk();
+
+    expect($order->refresh()->payment_status)->toBe('unpaid');
+});
+
 test('checkout_session.payment.paid matches by checkout session id', function () {
     config(['paymongo.webhook_secret' => 'test_secret']);
 
     $user = User::factory()->create();
     $order = Order::factory()->create([
         'user_id' => $user->id,
+        'total' => 2000,
         'checkout_session_id' => 'cs_test_abc',
         'status' => 'pending',
         'payment_status' => 'unpaid',
@@ -125,6 +198,8 @@ test('checkout_session.payment.paid matches by checkout session id', function ()
                 'data' => [
                     'id' => 'cs_test_abc',
                     'attributes' => [
+                        'amount' => 200000,
+                        'currency' => 'PHP',
                         'payments' => [
                             ['id' => 'pay_456', 'attributes' => ['source' => ['type' => 'gcash']]],
                         ],
@@ -143,12 +218,14 @@ test('checkout_session.payment.paid matches by checkout session id', function ()
     expect($order->payment_method)->toBe('gcash');
 });
 
-test('payment.paid webhook is idempotent', function () {
+test('checkout_session.payment.paid is ignored when the amount does not match', function () {
     config(['paymongo.webhook_secret' => 'test_secret']);
 
     $user = User::factory()->create();
     $order = Order::factory()->create([
         'user_id' => $user->id,
+        'total' => 2000,
+        'checkout_session_id' => 'cs_test_abc',
         'status' => 'pending',
         'payment_status' => 'unpaid',
     ]);
@@ -156,14 +233,33 @@ test('payment.paid webhook is idempotent', function () {
     $payload = [
         'data' => [
             'attributes' => [
-                'type' => 'payment.paid',
+                'type' => 'checkout_session.payment.paid',
                 'data' => [
-                    'id' => 'pay_123',
-                    'attributes' => ['metadata' => ['order_id' => $order->id]],
+                    'id' => 'cs_test_abc',
+                    'attributes' => ['amount' => 5, 'currency' => 'PHP'],
                 ],
             ],
         ],
     ];
+
+    $this->postJson('/paymongo/webhook', $payload, buildWebhookSignature(json_encode($payload)))
+        ->assertOk();
+
+    expect($order->refresh()->payment_status)->toBe('unpaid');
+});
+
+test('payment.paid webhook is idempotent', function () {
+    config(['paymongo.webhook_secret' => 'test_secret']);
+
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'total' => 1500,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+    ]);
+
+    $payload = paymentPaidPayload($order);
 
     $raw = json_encode($payload);
 
@@ -179,21 +275,12 @@ test('payment.paid is ignored for a cancelled order', function () {
     $user = User::factory()->create();
     $order = Order::factory()->create([
         'user_id' => $user->id,
+        'total' => 1500,
         'status' => 'cancelled',
         'payment_status' => 'unpaid',
     ]);
 
-    $payload = [
-        'data' => [
-            'attributes' => [
-                'type' => 'payment.paid',
-                'data' => [
-                    'id' => 'pay_123',
-                    'attributes' => ['metadata' => ['order_id' => $order->id]],
-                ],
-            ],
-        ],
-    ];
+    $payload = paymentPaidPayload($order);
 
     $this->postJson('/paymongo/webhook', $payload, buildWebhookSignature(json_encode($payload)))
         ->assertOk();
@@ -226,6 +313,43 @@ test('payment.failed releases reserved stock and cancels the order', function ()
                     'id' => 'pay_789',
                     'attributes' => ['metadata' => ['order_id' => $order->id]],
                 ],
+            ],
+        ],
+    ];
+
+    $raw = json_encode($payload);
+
+    $this->postJson('/paymongo/webhook', $payload, buildWebhookSignature($raw))->assertOk();
+
+    $order->refresh();
+    expect($order->payment_status)->toBe('failed');
+    expect($order->status)->toBe('cancelled');
+    expect($product->fresh()->product_quantity)->toBe(5);
+});
+
+test('checkout_session.expired releases reserved stock and cancels the order', function () {
+    config(['paymongo.webhook_secret' => 'test_secret']);
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'checkout_session_id' => 'cs_expired',
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+    ]);
+    OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+    $product->decrement('product_quantity', 2);
+
+    $payload = [
+        'data' => [
+            'attributes' => [
+                'type' => 'checkout_session.expired',
+                'data' => ['id' => 'cs_expired'],
             ],
         ],
     ];

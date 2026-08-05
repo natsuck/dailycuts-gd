@@ -11,7 +11,7 @@
             <strong>Banner Details</strong>
         </div>
 
-        <form action="{{ route('admin.sale-banners.store') }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('admin.sale-banners.store') }}" method="POST" enctype="multipart/form-data" data-submit-once>
             @include('admin.sale-banners._form', ['buttonText' => 'Create Banner'])
         </form>
     </div>

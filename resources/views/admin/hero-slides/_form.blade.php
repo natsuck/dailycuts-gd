@@ -10,7 +10,6 @@
         name="heading"
         class="form-control"
         value="{{ old('heading', $slide->heading) }}"
-        required
         maxlength="120"
       />
       @error('heading')
@@ -115,6 +114,31 @@
         <img
           src="{{ asset($slide->image_path) }}"
           alt="{{ $slide->heading }}"
+          class="img-fluid mt-3 rounded"
+        />
+      @endif
+    </div>
+
+    <div class="form-group mt-4">
+      <label for="mobile_image">Mobile Image <small class="text-muted">(optional)</small></label>
+      <input
+        type="file"
+        id="mobile_image"
+        name="mobile_image"
+        class="form-control-file"
+        accept="image/*"
+      />
+      <small class="form-text text-muted">
+        Portrait crop of the slide image (e.g. 750x1000). Falls back to the default mobile hero when blank.
+      </small>
+      @error('mobile_image')
+        <small class="text-danger d-block">{{ $message }}</small>
+      @enderror
+
+      @if ($slide->mobile_image_path)
+        <img
+          src="{{ asset($slide->mobile_image_path) }}"
+          alt="{{ $slide->heading }} mobile"
           class="img-fluid mt-3 rounded"
         />
       @endif

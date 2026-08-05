@@ -2,6 +2,8 @@
 
 @section('content')
 
+@php $storeLocation = \App\Models\StoreLocation::activePickup(); @endphp
+
 <main class="max-w-container-max mx-auto px-4 md:px-margin-desktop py-8 md:py-12">
   <div class="max-w-3xl mx-auto">
 
@@ -111,7 +113,7 @@
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
           <li>Email: <a href="mailto:nathanielquirino3210@gmail.com" class="text-primary hover:underline">nathanielquirino3210@gmail.com</a></li>
           <li>Phone: <a href="tel:+631234567891" class="text-primary hover:underline">+63 1234567891</a></li>
-          <li>Address: Phase 10, Wellington Place</li>
+          <li>Address: {{ $storeLocation?->fullAddress() ?? 'Phase 10, Wellington Place' }}</li>
         </ul>
       </section>
 

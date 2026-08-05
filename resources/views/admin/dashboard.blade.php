@@ -200,6 +200,18 @@
                 <small class="text-muted">{{ $dashboardStats['lowStockProducts'] }} low stock, {{ $dashboardStats['expiringProducts'] }} expiring, {{ $dashboardStats['totalProducts'] }} products</small>
             </div>
         </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="statistic-block block dashboard-stat">
+                <div class="progress-details d-flex align-items-end justify-content-between">
+                    <div class="title">
+                        <div class="icon"><i class="fa fa-users"></i></div><strong>Registered Customers</strong>
+                    </div>
+                    <div class="number dashtext-2">{{ number_format($dashboardStats['totalCustomers']) }}</div>
+                </div>
+                <small class="text-muted">customer accounts</small>
+            </div>
+        </div>
     </div>
 
     <div class="row">

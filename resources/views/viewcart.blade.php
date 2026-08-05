@@ -97,7 +97,7 @@
                   <div class="p-3 flex flex-col gap-1.5 flex-1">
                     <h4 class="font-bold text-[13px] leading-tight">{{ $pairing->product_title }}</h4>
                     <p class="font-price-display text-price-display text-primary">&#8369;{{ number_format($pHasVariants ? $pFirstVariant->price : $pairing->product_price, 2) }}</p>
-                    <form action="{{ route('cart.add', $pairing->id) }}" method="POST" class="mt-auto">
+                    <form action="{{ route('cart.add', $pairing->id) }}" method="POST" class="mt-auto" data-submit-once>
                       @csrf
                       @if($pHasVariants)
                         <input type="hidden" name="variant_id" value="{{ $pFirstVariant->id }}">

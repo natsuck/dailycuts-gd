@@ -9,6 +9,8 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\User;
+use App\Services\LalamoveDeliveryService;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
@@ -47,6 +49,7 @@ class AdminController extends Controller
                     ->where('product_quantity', '>', 0)
                     ->count()
                 : 0,
+            'totalCustomers' => User::where('user_type', 'user')->count(),
         ];
 
         $recentOrders = Order::with(['user', 'items.product'])
@@ -178,6 +181,7 @@ class AdminController extends Controller
 
         $product->save();
 
+        $this->syncCategories($product, $request);
         $this->syncVariants($product, $request);
         $product->pairings()->sync($request->input('pairings', []));
 
@@ -207,7 +211,7 @@ class AdminController extends Controller
 
     public function updateProduct($id)
     {
-        $product = Product::with('pairings')->findOrFail($id);
+        $product = Product::with(['pairings', 'categories'])->findOrFail($id);
         $categories = Category::all();
         $allProducts = Product::where('id', '!=', $id)->orderBy('product_title')->get(['id', 'product_title']);
 
@@ -232,6 +236,7 @@ class AdminController extends Controller
 
         $product->save();
 
+        $this->syncCategories($product, $request);
         $this->syncVariants($product, $request);
         $product->pairings()->sync($request->input('pairings', []));
 
@@ -313,6 +318,37 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Order status updated!');
     }
 
+    public function dispatchToLalamove($id)
+    {
+        $order = Order::with('items')->findOrFail($id);
+
+        if ($order->lalamove_order_id) {
+            return redirect()->back()->with(
+                'success',
+                'Order #'.$order->id.' is already dispatched to Lalamove ('.$order->lalamove_order_id.').'
+            );
+        }
+
+        if ($order->payment_status !== 'paid') {
+            return redirect()->back()->withErrors([
+                'lalamove' => 'Only paid orders can be dispatched to Lalamove.',
+            ]);
+        }
+
+        $delivery = app(LalamoveDeliveryService::class);
+
+        if (! $delivery->dispatch($order)) {
+            return redirect()->back()->withErrors([
+                'lalamove' => 'Lalamove dispatch failed: '.($delivery->getLastError() ?? 'Unknown error'),
+            ]);
+        }
+
+        return redirect()->back()->with(
+            'success',
+            'Order #'.$order->id.' dispatched to Lalamove ('.$order->lalamove_order_id.').'
+        );
+    }
+
     public function deleteOrder($id)
     {
         $order = Order::findOrFail($id);
@@ -370,6 +406,8 @@ class AdminController extends Controller
             'expiry_date' => ['nullable', 'date'],
             'product_price' => [$hasVariants ? 'nullable' : 'required', 'numeric', 'min:0'],
             'product_category' => ['required', 'string', 'max:255'],
+            'categories' => ['nullable', 'array'],
+            'categories.*' => ['integer', 'exists:categories,id'],
             'product_type' => ['nullable', 'string', 'in:fresh,frozen,pantry,produce'],
             'pairings' => ['nullable', 'array'],
             'pairings.*' => ['integer', 'exists:products,id'],
@@ -380,10 +418,24 @@ class AdminController extends Controller
         ]);
     }
 
+    protected function syncCategories(Product $product, Request $request): void
+    {
+        $categoryIds = collect($request->input('categories', []))->filter();
+
+        $primaryName = $request->input('product_category');
+        $primaryId = $primaryName ? Category::where('category', $primaryName)->value('id') : null;
+
+        if ($primaryId) {
+            $categoryIds->push($primaryId);
+        }
+
+        $product->categories()->sync($categoryIds->unique()->values()->all());
+    }
+
     protected function storeProductImage(Request $request): string
     {
         $image = $request->file('product_image');
-        $imageName = uniqid('product_', true).'.'.$image->getClientOriginalExtension();
+        $imageName = uniqid('product_', true).'.'.$image->guessExtension();
         $image->move(public_path('products'), $imageName);
 
         return $imageName;

@@ -12,11 +12,15 @@
 
     <div class="space-y-4">
       @php
+        $storeLocation = \App\Models\StoreLocation::activePickup();
         $faqs = [
           'How can I order?' => 'You can place your order directly through this official account. Just follow the usual steps to check out.',
           'Can you do same-day delivery?' => 'Yes. Cut-off for same-day delivery is 3:00pm. Orders after 3:00pm will be shipped out the next day.',
           'How will you deliver my goods?' => 'For your convenience, we will book the delivery for you via Lalamove.',
           'What days are you open?' => 'We are open from Mondays-Sundays, 9am-6pm.',
+          'Where are you located?' => $storeLocation
+            ? ($storeLocation->fullAddress().'. You can reach us at '.$storeLocation->phone.'.')
+            : 'Visit our <a href="'.route('store.locations').'" class="text-primary font-bold hover:underline">Find Our Stores</a> page for our locations.',
           'Can you ship nationwide?' => 'As of the moment, we can only serve Metro Manila and some parts of Luzon (Laguna, Cavite, Bulacan, and Rizal).',
         ];
       @endphp

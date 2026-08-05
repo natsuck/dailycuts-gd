@@ -17,6 +17,7 @@ class HeroSlide extends Model
         'cta_text',
         'cta_link',
         'image_path',
+        'mobile_image_path',
         'sort_order',
         'is_active',
     ];

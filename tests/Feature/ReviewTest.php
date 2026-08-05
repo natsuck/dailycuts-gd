@@ -1,12 +1,20 @@
 <?php
 
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Review;
 use App\Models\User;
 
-test('a user can submit a review for a product', function () {
+test('a user who purchased the product can submit a review', function () {
     $user = User::factory()->create();
     $product = Product::factory()->create();
+    $order = Order::factory()->paid()->create(['user_id' => $user->id]);
+    OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
 
     $this->actingAs($user)
         ->from('/product_details/'.$product->id)
@@ -22,6 +30,44 @@ test('a user can submit a review for a product', function () {
         'product_id' => $product->id,
         'rating' => 5,
     ]);
+});
+
+test('a user cannot review a product they never purchased', function () {
+    $user = User::factory()->create();
+    $product = Product::factory()->create();
+
+    $this->actingAs($user)
+        ->from('/product_details/'.$product->id)
+        ->post('/products/'.$product->id.'/reviews', [
+            'rating' => 5,
+            'title' => 'Not a customer',
+            'body' => 'Should be blocked.',
+        ])
+        ->assertRedirect('/product_details/'.$product->id)
+        ->assertSessionHasErrors('review');
+
+    expect(Review::count())->toBe(0);
+});
+
+test('a cancelled purchase does not grant review rights', function () {
+    $user = User::factory()->create();
+    $product = Product::factory()->create();
+    $order = Order::factory()->paid()->create([
+        'user_id' => $user->id,
+        'status' => 'cancelled',
+    ]);
+    OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->from('/product_details/'.$product->id)
+        ->post('/products/'.$product->id.'/reviews', ['rating' => 4])
+        ->assertSessionHasErrors('review');
+
+    expect(Review::count())->toBe(0);
 });
 
 test('a review requires a valid rating', function () {

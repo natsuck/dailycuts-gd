@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\InventoryHistory;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InventoryController extends Controller
 {
@@ -33,11 +34,14 @@ class InventoryController extends Controller
         ]);
 
         $product = Product::findOrFail($id);
-        $product->recordInventoryChange(
-            $validated['type'],
-            $validated['quantity'],
-            $validated['notes'] ?? null
-        );
+
+        DB::transaction(function () use ($product, $validated) {
+            $product->recordInventoryChange(
+                $validated['type'],
+                $validated['quantity'],
+                $validated['notes'] ?? null
+            );
+        });
 
         return redirect()->back()->with('success', 'Inventory adjusted successfully.');
     }

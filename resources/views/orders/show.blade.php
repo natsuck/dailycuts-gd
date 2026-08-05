@@ -79,6 +79,37 @@
       </div>
     @endif
 
+    {{-- Live Lalamove Courier Tracking --}}
+    @if($order->lalamove_order_id)
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 mb-8">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-headline-sm text-headline-sm text-on-surface">Courier Tracking</h2>
+          <button type="button" id="courier-refresh" class="flex items-center gap-1 text-sm font-semibold text-primary hover:opacity-80 transition-all">
+            <span class="material-symbols-outlined text-[18px]">refresh</span>
+            Refresh
+          </button>
+        </div>
+        <div class="flex items-center gap-3 mb-4">
+          <span id="courier-badge" class="inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-blue-100 text-blue-800 border-blue-300">
+            {{ $order->lalamove_status ?? ($order->delivery_status ?? 'pending') }}
+          </span>
+        </div>
+        <p id="courier-driver" class="font-body-md text-on-surface-variant mb-4">
+          @if($order->lalamove_status === 'COMPLETED')
+            Your order has been delivered. Thank you!
+          @else
+            Looking for a courier...
+          @endif
+        </p>
+        <a id="courier-track-link" href="{{ $order->tracking_url ?: '#' }}"
+           target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center gap-2 bg-primary text-white font-bold px-5 py-3 rounded-lg hover:opacity-90 transition-all {{ $order->tracking_url ? '' : 'pointer-events-none opacity-40' }}">
+          <span class="material-symbols-outlined text-[20px]">navigation</span>
+          Track on Lalamove
+        </a>
+      </div>
+    @endif
+
     {{-- Order Items --}}
     <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 mb-8">
       <h2 class="font-headline-sm text-headline-sm text-on-surface mb-6">Order Items</h2>
@@ -171,5 +202,67 @@
 
   </div>
 </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var badge = document.getElementById('courier-badge');
+  var driver = document.getElementById('courier-driver');
+  var trackLink = document.getElementById('courier-track-link');
+  var refreshBtn = document.getElementById('courier-refresh');
+
+  var labels = {
+    'ASSIGNING_DRIVER': 'Looking for a courier...',
+    'DRIVER_ASSIGNED': 'A courier has been assigned.',
+    'ON_GOING': 'Your order is on the way.',
+    'COMPLETED': 'Your order has been delivered. Thank you!',
+    'CANCELED': 'Delivery was cancelled.',
+    'CANCELLED': 'Delivery was cancelled.',
+    'EXPIRED': 'Delivery expired.',
+    'REJECTED': 'Delivery was rejected.'
+  };
+
+  function render(data) {
+    var status = data.lalamove_status || data.status || 'PENDING';
+    if (badge) {
+      badge.textContent = status;
+      badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-blue-100 text-blue-800 border-blue-300';
+      if (status === 'COMPLETED') {
+        badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-green-100 text-green-800 border-green-300';
+      } else if (['CANCELED', 'CANCELLED', 'EXPIRED', 'REJECTED'].indexOf(status) !== -1) {
+        badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-red-100 text-red-800 border-red-300';
+      }
+    }
+    if (driver) {
+      driver.textContent = labels[status] || 'Status: ' + status;
+      if (data.driver && data.driver.name) {
+        driver.textContent += ' Courier: ' + data.driver.name + (data.driver.phone ? ' (' + data.driver.phone + ')' : '') + '.';
+      }
+    }
+    if (trackLink && data.tracking_url) {
+      trackLink.href = data.tracking_url;
+      trackLink.classList.remove('pointer-events-none', 'opacity-40');
+    }
+  }
+
+  function loadCourierStatus() {
+    if (!badge) {
+      return;
+    }
+    fetch('{{ route("orders.lalamoveStatus", $order->id) }}', {
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) { if (data.available) { render(data); } })
+      .catch(function() {});
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', loadCourierStatus);
+  }
+
+  loadCourierStatus();
+  setInterval(loadCourierStatus, 15000);
+});
+</script>
 
 @endsection

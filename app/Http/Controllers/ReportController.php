@@ -68,17 +68,27 @@ class ReportController extends Controller
         $callback = function () use ($orders) {
             $file = fopen('php://output', 'w');
 
+            $escape = static function (mixed $value): string {
+                $value = (string) $value;
+
+                if ($value !== '' && str_contains('=+-@'."\t".chr(13), $value[0])) {
+                    return "'".$value;
+                }
+
+                return $value;
+            };
+
             fputcsv($file, ['Date', 'Order ID', 'Customer', 'Items Count', 'Subtotal', 'Status', 'Payment Status']);
 
             foreach ($orders as $order) {
                 fputcsv($file, [
-                    $order->created_at->format('Y-m-d H:i:s'),
-                    $order->id,
-                    $order->name,
-                    $order->items->sum('quantity'),
-                    number_format($order->subtotal(), 2),
-                    $order->status,
-                    $order->payment_status,
+                    $escape($order->created_at->format('Y-m-d H:i:s')),
+                    $escape($order->id),
+                    $escape($order->name),
+                    $escape($order->items->sum('quantity')),
+                    $escape(number_format($order->subtotal(), 2)),
+                    $escape($order->status),
+                    $escape($order->payment_status),
                 ]);
             }
 
@@ -132,7 +142,7 @@ class ReportController extends Controller
             ->take(5)
             ->get();
 
-        $dailySales = Order::query()
+        $dailySalesByDate = Order::query()
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$from, $to])
             ->select(
@@ -148,12 +158,18 @@ class ReportController extends Controller
         $labels = [];
         $revenues = [];
         $ordersCounts = [];
+        $dailySales = collect();
 
         foreach (CarbonPeriod::create($from->copy()->startOfDay(), $to->copy()->startOfDay()) as $date) {
             $key = $date->toDateString();
             $labels[] = $date->format('M d');
-            $revenues[] = round((float) ($dailySales[$key]->revenue ?? 0), 2);
-            $ordersCounts[] = (int) ($dailySales[$key]->orders_count ?? 0);
+            $revenues[] = round((float) ($dailySalesByDate[$key]->revenue ?? 0), 2);
+            $ordersCounts[] = (int) ($dailySalesByDate[$key]->orders_count ?? 0);
+            $dailySales->push((object) [
+                'date' => $date->format('M d, Y'),
+                'revenue' => round((float) ($dailySalesByDate[$key]->revenue ?? 0), 2),
+                'orders' => (int) ($dailySalesByDate[$key]->orders_count ?? 0),
+            ]);
         }
 
         $salesTrend = [
@@ -167,7 +183,8 @@ class ReportController extends Controller
             'totalOrders',
             'avgOrderValue',
             'topProducts',
-            'salesTrend'
+            'salesTrend',
+            'dailySales'
         );
     }
 }

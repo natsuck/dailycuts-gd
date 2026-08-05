@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Services\LalamoveService;
 use Illuminate\Support\Facades\Auth;
 
 class OrderController extends Controller
@@ -30,5 +31,40 @@ class OrderController extends Controller
         }
 
         return view('orders.show', compact('order', 'steps', 'currentIndex'));
+    }
+
+    /**
+     * Live Lalamove courier status for a customer's order.
+     */
+    public function lalamoveStatus($id, LalamoveService $lalamove)
+    {
+        $order = Order::where('user_id', Auth::id())->findOrFail($id);
+
+        if (! $order->lalamove_order_id) {
+            return response()->json(['available' => false]);
+        }
+
+        $info = $lalamove->getOrder($order->lalamove_order_id);
+
+        if ($info) {
+            $order->lalamove_status = $info['status'] ?? $order->lalamove_status;
+            $order->delivery_status = $info['status'] ?? $order->delivery_status;
+            $order->tracking_url = data_get($info, 'shareLink') ?: $order->tracking_url;
+            $order->save();
+        }
+
+        $driver = $info['driver'] ?? null;
+
+        return response()->json([
+            'available' => true,
+            'status' => $order->delivery_status,
+            'lalamove_status' => $order->lalamove_status,
+            'tracking_url' => $order->tracking_url,
+            'driver' => $driver ? [
+                'name' => $driver['name'] ?? null,
+                'phone' => $driver['phone'] ?? null,
+            ] : null,
+            'error' => $info ? null : $lalamove->getLastError(),
+        ]);
     }
 }
