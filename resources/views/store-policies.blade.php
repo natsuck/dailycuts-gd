@@ -81,7 +81,7 @@
           <div>
             <h3 class="font-headline-sm text-headline-sm text-on-surface mb-2">5. Refund Processing Time</h3>
             <p class="text-on-surface-variant mb-2">In cases where a refund is approved and confirmed by management, processing times may vary depending on the payment method used.</p>
-            <p class="text-on-surface-variant mb-2">For debit and credit card payments processed through PayMongo, refunds may take up to 30 business days or longer to reflect on the customer&rsquo;s account after the refund has been confirmed, subject to the policies and processing timelines of PayMongo and the customer&rsquo;s issuing bank.</p>
+            <p class="text-on-surface-variant mb-2">For debit and credit card payments processed through Maya, refunds may take up to 30 business days or longer to reflect on the customer&rsquo;s account after the refund has been confirmed, subject to the policies and processing timelines of Maya and the customer&rsquo;s issuing bank.</p>
             <p class="text-on-surface-variant">By placing an order, the customer acknowledges and agrees to these refund processing timelines.</p>
           </div>
 

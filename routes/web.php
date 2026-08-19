@@ -8,13 +8,15 @@ use App\Http\Controllers\AdminStoreLocationController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Webhook\LalamoveWebhookController;
-use App\Http\Controllers\Webhook\PaymongoWebhookController;
+use App\Http\Controllers\Webhook\MayaWebhookController;
 use App\Http\Controllers\WishlistController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [UserController::class, 'home'])->name('index');
@@ -45,9 +47,12 @@ Route::middleware(['auth', 'verified', 'customer'])->group(function () {
 
 Route::middleware(['auth', 'verified', 'customer'])->group(function () {
     Route::get('/checkout', [CheckoutController::class, 'checkout'])->name('checkout');
-    Route::post('/checkout/place-order', [CheckoutController::class, 'placeOrder'])->name('checkout.placeOrder');
+    Route::post('/checkout/place-order', [CheckoutController::class, 'placeOrder'])
+        ->middleware('throttle:10,1')
+        ->name('checkout.placeOrder');
     Route::get('/checkout/success', [CheckoutController::class, 'checkoutSuccess'])->name('checkout.success');
     Route::get('/checkout/cancel', [CheckoutController::class, 'checkoutCancel'])->name('checkout.cancel');
+    Route::get('/checkout/failure', [CheckoutController::class, 'checkoutFailure'])->name('checkout.failure');
     Route::get('/checkout/estimate-shipping', [CheckoutController::class, 'estimateShipping'])
         ->middleware('throttle:30,1')
         ->name('checkout.estimateShipping');
@@ -55,13 +60,13 @@ Route::middleware(['auth', 'verified', 'customer'])->group(function () {
     Route::delete('/checkout/coupon', [CheckoutController::class, 'removeCoupon'])->name('checkout.couponRemove');
 });
 
-Route::get('/paymongo/webhook', fn () => response()->json(['status' => 'ok']));
+Route::get('/maya/webhook', fn () => response()->json(['status' => 'ok']));
 
-Route::post('/paymongo/webhook', [PaymongoWebhookController::class, 'handle'])
-    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+Route::post('/maya/webhook', [MayaWebhookController::class, 'handle'])
+    ->withoutMiddleware([VerifyCsrfToken::class]);
 
 Route::post('/lalamove/webhook', [LalamoveWebhookController::class, 'handle'])
-    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+    ->withoutMiddleware([VerifyCsrfToken::class]);
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -115,9 +120,9 @@ Route::middleware(['auth', 'verified', 'customer'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified', 'customer'])->group(function () {
-    Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index'])->name('orders.index');
-    Route::get('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'show'])->name('orders.show');
-    Route::get('/orders/{id}/lalamove-status', [\App\Http\Controllers\OrderController::class, 'lalamoveStatus'])->name('orders.lalamoveStatus');
+    Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
+    Route::get('/orders/{id}', [OrderController::class, 'show'])->name('orders.show');
+    Route::get('/orders/{id}/lalamove-status', [OrderController::class, 'lalamoveStatus'])->name('orders.lalamoveStatus');
 });
 
 Route::middleware(['auth', 'verified', 'customer'])->group(function () {
@@ -147,6 +152,3 @@ Route::middleware(['auth', 'admin'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
-
-
-

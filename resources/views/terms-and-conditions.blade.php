@@ -32,7 +32,7 @@
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">3. Orders and Payment</h2>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
           <li>By placing an order, you are making an offer to purchase products subject to these terms.</li>
-          <li>Orders are confirmed only after successful payment through our payment gateway (PayMongo). Supported payment methods include GCash and credit/debit cards.</li>
+          <li>Orders are confirmed only after successful payment through our payment gateway (Maya). Supported payment methods include Maya Wallet and credit/debit cards.</li>
           <li>We reserve the right to cancel or refuse any order for any reason, including but not limited to product unavailability, pricing errors, or suspected fraudulent activity.</li>
           <li>An order confirmation will be sent to your registered email address upon successful payment.</li>
           <li>If an order is cancelled due to stock unavailability or payment issues, a full refund will be processed within 7-14 business days.</li>

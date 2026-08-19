@@ -22,6 +22,7 @@ class Order extends Model
         'checkout_session_id',
         'checkout_session_url',
         'idempotency_key',
+        'payment_request_reference',
         'payment_status',
         'payment_method',
         'payment_intent_id',
@@ -32,6 +33,9 @@ class Order extends Model
         'delivery_stop_id',
         'delivery_status',
         'tracking_url',
+        'last_lalamove_webhook_at',
+        'lalamove_driver_name',
+        'lalamove_driver_phone',
         'pickup_address',
         'pickup_lat',
         'pickup_lng',
@@ -47,6 +51,7 @@ class Order extends Model
         'total' => 'decimal:2',
         'shipping_fee' => 'decimal:2',
         'discount' => 'decimal:2',
+        'last_lalamove_webhook_at' => 'datetime',
     ];
 
     public function items()

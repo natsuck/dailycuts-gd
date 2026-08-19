@@ -102,6 +102,11 @@
             <input type="checkbox" class="custom-control-input" id="is_active" name="is_active" value="1" {{ old('is_active', $banner->is_active) ? 'checked' : '' }}>
             <label class="custom-control-label" for="is_active">Active</label>
         </div>
+
+        <div class="custom-control custom-switch mb-4">
+            <input type="checkbox" class="custom-control-input" id="show_in_ticker" name="show_in_ticker" value="1" {{ old('show_in_ticker', $banner->show_in_ticker) ? 'checked' : '' }}>
+            <label class="custom-control-label" for="show_in_ticker">Show in announcement ticker (scrolls above the header)</label>
+        </div>
     </div>
 </div>
 

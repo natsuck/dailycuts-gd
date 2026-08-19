@@ -8,17 +8,20 @@ use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\SavedAddress;
+use App\Services\AddressNormalizer;
 use App\Services\GeocodingService;
 use App\Services\InventoryService;
+use App\Services\LalamoveDeliveryService;
+use App\Services\MayaPaymentConfirmationService;
 use App\Services\OrderPricingService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CheckoutController extends Controller
 {
@@ -215,6 +218,15 @@ class CheckoutController extends Controller
             ]);
         }
 
+        // Browser address autofill or manual typing often repeats the street or
+        // appends the city/region; collapse those before persisting so orders,
+        // saved addresses, and delivery dispatch get one clean street line.
+        $validated['address'] = app(AddressNormalizer::class)->line(
+            $validated['address'],
+            $validated['city'] ?? '',
+            $validated['region'] ?? '',
+        );
+
         $address = trim($validated['address'].' '.($validated['address2'] ?? ''));
         $fullAddress = trim($address.', '.$validated['barangay'].', '.$validated['city'].', '.$validated['region'].' '.$validated['postal']);
         $coords = $this->verifiedCoordinates($validated)
@@ -241,31 +253,28 @@ class CheckoutController extends Controller
         );
 
         $lineItems = $cart->map(function ($item) {
-            $line = [
+            $unitPrice = round((float) $item->unitPrice(), 2);
+
+            return [
                 'name' => $item->product->product_title.($item->variant ? ' ('.$item->variant->weight.')' : ''),
-                'amount' => (int) round($item->unitPrice() * 100),
-                'currency' => 'PHP',
-                'quantity' => (int) $item->quantity,
+                'quantity' => (string) $item->quantity,
+                // Maya's validator requires numeric values, not strings.
+                'amount' => ['value' => $unitPrice],
+                'totalAmount' => ['value' => round($unitPrice * $item->quantity, 2)],
             ];
-
-            if ($item->product->product_image) {
-                $imageUrl = secure_asset('products/'.$item->product->product_image);
-                $line['images'] = [$imageUrl];
-            }
-
-            return $line;
-        })->toArray();
+        })->values()->toArray();
 
         if ($totals['shippingFee'] > 0) {
+            $shippingFee = round((float) $totals['shippingFee'], 2);
             $lineItems[] = [
                 'name' => 'Delivery Fee',
-                'amount' => (int) round($totals['shippingFee'] * 100),
-                'currency' => 'PHP',
-                'quantity' => 1,
+                'quantity' => '1',
+                'amount' => ['value' => $shippingFee],
+                'totalAmount' => ['value' => $shippingFee],
             ];
         }
 
-        $totalAmount = (int) round($totals['grandTotal'] * 100);
+        $totalAmount = round((float) $totals['grandTotal'], 2);
         $deliveryPlaceId = $validated['delivery_place_id'] ?? null;
 
         // Reuse an existing order when the same checkout form is submitted more
@@ -364,49 +373,130 @@ class CheckoutController extends Controller
             ]);
         }
 
-        $secret = base64_encode(config('paymongo.secret').':');
+        $basicAuth = base64_encode(config('maya.public_key').':');
+
+        $attempts = max(1, (int) config('maya.checkout_retries', 3));
+        $retryDelayMs = max(0, (int) config('maya.checkout_retry_delay_ms', 500));
+
+        $response = null;
+        $session = null;
+        $requestReference = null;
+        $transientFailure = false;
 
         try {
-            $response = Http::timeout(30)
-                ->withHeaders([
-                    'Authorization' => 'Basic '.$secret,
-                    'Content-Type' => 'application/json',
-                ])
-                ->post('https://api.paymongo.com/v1/checkout_sessions', [
-                    'data' => [
-                        'attributes' => [
-                            'amount' => $totalAmount,
-                            'currency' => 'PHP',
-                            'description' => 'Order #'.$order->id,
-                            'metadata' => ['order_id' => $order->id],
-                            'payment_method_types' => ['gcash', 'card'],
-                            'success_url' => url('/checkout/success?order_id='.$order->id),
-                            'cancel_url' => url('/checkout/cancel?order_id='.$order->id),
-                            'billing' => [
-                                'name' => $order->name,
-                                'email' => $validated['email'],
-                                'phone' => $validated['phone'],
-                                'address' => [
+            for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+                // Each attempt needs a fresh request reference number; Maya
+                // rejects reused ones.
+                $requestReference = (string) Str::uuid();
+
+                try {
+                    $response = Http::timeout(30)
+                        ->withHeaders([
+                            'Authorization' => 'Basic '.$basicAuth,
+                            'Content-Type' => 'application/json',
+                            'Accept' => 'application/json',
+                        ])
+                        ->post(config('maya.base_url').'/checkout/v1/checkouts', [
+                            'totalAmount' => [
+                                'value' => $totalAmount,
+                                'currency' => 'PHP',
+                                'details' => [
+                                    // The OpenAPI spec declares the details fields
+                                    // as two-decimal numeric strings (e.g. "100.00").
+                                    'subtotal' => number_format(round((float) $totals['subtotal'], 2), 2, '.', ''),
+                                    'discount' => number_format(round((float) $totals['discount'], 2), 2, '.', ''),
+                                    'shippingFee' => number_format(round((float) $totals['shippingFee'], 2), 2, '.', ''),
+                                ],
+                            ],
+                            'buyer' => [
+                                'firstName' => $validated['first_name'],
+                                'lastName' => $validated['last_name'],
+                                'contact' => [
+                                    'phone' => $this->phoneForMaya($validated['phone']),
+                                    'email' => $validated['email'],
+                                ],
+                                'shippingAddress' => [
+                                    'firstName' => $validated['first_name'],
+                                    'lastName' => $validated['last_name'],
+                                    'phone' => $this->phoneForMaya($validated['phone']),
+                                    'email' => $validated['email'],
                                     'line1' => trim($validated['address'].' '.($validated['address2'] ?? '')),
                                     'line2' => $validated['barangay'],
                                     'city' => $validated['city'],
                                     'state' => $validated['region'],
-                                    'postal_code' => $validated['postal'],
-                                    'country' => 'PH',
+                                    'zipCode' => $validated['postal'],
+                                    'countryCode' => 'PH',
+                                ],
+                                'billingAddress' => [
+                                    'line1' => trim($validated['address'].' '.($validated['address2'] ?? '')),
+                                    'line2' => $validated['barangay'],
+                                    'city' => $validated['city'],
+                                    'state' => $validated['region'],
+                                    'zipCode' => $validated['postal'],
+                                    'countryCode' => 'PH',
                                 ],
                             ],
-                            'line_items' => $lineItems,
-                        ],
-                    ],
-                ]);
+                            'items' => $lineItems,
+                            'redirectUrl' => [
+                                'success' => url('/checkout/success?order_id='.$order->id),
+                                'failure' => url('/checkout/failure?order_id='.$order->id),
+                                'cancel' => url('/checkout/cancel?order_id='.$order->id),
+                            ],
+                            'requestReferenceNumber' => $requestReference,
+                        ]);
+                } catch (\Exception $e) {
+                    Log::warning('Maya checkout connection failed; retrying', [
+                        'order_id' => $order->id,
+                        'attempt' => $attempt,
+                        'message' => $e->getMessage(),
+                    ]);
 
-            $session = $response->json();
+                    $transientFailure = true;
 
-            if (! $response->successful() || ! isset($session['data']['id'], $session['data']['attributes']['checkout_url'])) {
-                Log::error('PayMongo checkout session creation failed', [
+                    if ($attempt < $attempts) {
+                        usleep($retryDelayMs * 1000);
+
+                        continue;
+                    }
+
+                    break;
+                }
+
+                $session = $response->json();
+
+                if ($response->successful() && isset($session['checkoutId'], $session['redirectUrl'])) {
+                    break;
+                }
+
+                if ($response->status() === 429 || $response->serverError() || ! is_array($session)) {
+                    $transientFailure = true;
+
+                    if ($attempt < $attempts) {
+                        Log::warning('Maya checkout creation retrying transient failure', [
+                            'order_id' => $order->id,
+                            'attempt' => $attempt,
+                            'status' => $response->status(),
+                        ]);
+
+                        usleep($retryDelayMs * 1000);
+
+                        continue;
+                    }
+
+                    break;
+                }
+
+                // Non-transient (4xx validation/auth) failures will not be
+                // fixed by retrying.
+                $transientFailure = false;
+                break;
+            }
+
+            if (! $response || ! isset($session['checkoutId'], $session['redirectUrl'])) {
+                Log::error('Maya checkout creation failed', [
                     'order_id' => $order->id,
-                    'status' => $response->status(),
-                    'response' => $this->redactPaymentResponse($session),
+                    'status' => $response?->status(),
+                    'response' => $session,
                 ]);
 
                 DB::transaction(function () use ($order, $inventory) {
@@ -416,13 +506,16 @@ class CheckoutController extends Controller
                 });
 
                 return redirect()->route('checkout')->withErrors([
-                    'checkout' => 'Payment gateway returned an error. Please try again.',
+                    'checkout' => $transientFailure
+                        ? 'Payment gateway is temporarily unavailable. Please try again in a few minutes.'
+                        : 'Payment gateway returned an error. Please try again.',
                 ]);
             }
 
             $order->update([
-                'checkout_session_id' => $session['data']['id'],
-                'checkout_session_url' => $session['data']['attributes']['checkout_url'],
+                'checkout_session_id' => $session['checkoutId'],
+                'checkout_session_url' => $session['redirectUrl'],
+                'payment_request_reference' => $requestReference,
             ]);
 
             if ($coupon) {
@@ -446,10 +539,10 @@ class CheckoutController extends Controller
                 session()->forget('coupon_code');
             }
 
-            return redirect()->away($session['data']['attributes']['checkout_url']);
+            return redirect()->away($session['redirectUrl']);
 
         } catch (\Exception $e) {
-            Log::error('PayMongo API connection failed', [
+            Log::error('Maya API connection failed', [
                 'order_id' => $order->id,
                 'message' => $e->getMessage(),
             ]);
@@ -471,8 +564,20 @@ class CheckoutController extends Controller
         $orderId = $request->integer('order_id');
 
         if ($orderId && Order::whereKey($orderId)->where('user_id', Auth::id())->exists()) {
+            $order = Order::whereKey($orderId)->where('user_id', Auth::id())->firstOrFail();
+
+            // The webhook is authoritative, but the browser may arrive here
+            // before it is delivered. Reconcile against Maya so the customer
+            // is not told payment was received when it has not been yet.
+            if ($order->payment_status !== 'paid' && $order->checkout_session_id) {
+                $this->reconcilePayment($order);
+                $order->refresh();
+            }
+
             return redirect()->route('orders.show', $orderId)
-                ->with('orderMessage', 'Payment received! We are processing your order.');
+                ->with('orderMessage', $order->payment_status === 'paid'
+                    ? 'Payment received! We are processing your order.'
+                    : 'Payment is being processed. We will confirm your order once payment is verified.');
         }
 
         return redirect()->route('shop')
@@ -486,6 +591,77 @@ class CheckoutController extends Controller
         // stock released via the payment.failed / checkout_session.expired webhook.
         return redirect()->route('shop')
             ->with('orderMessage', 'Payment was cancelled. Please try again.');
+    }
+
+    public function checkoutFailure(Request $request)
+    {
+        // Deliberately non-destructive: the browser redirect from the payment
+        // gateway cannot carry a CSRF token. Abandoned unpaid orders have their
+        // stock released via the PAYMENT_FAILED / PAYMENT_EXPIRED webhook.
+        return redirect()->route('shop')
+            ->with('orderMessage', 'Payment failed. Please try again.');
+    }
+
+    /**
+     * Reconciles an unpaid order against Maya's Get Checkout API. The webhook
+     * remains authoritative; this only closes the gap between the browser
+     * redirect and webhook delivery. Failures (e.g. a misconfigured secret
+     * key) are logged and left to the webhook.
+     */
+    protected function reconcilePayment(Order $order): void
+    {
+        try {
+            $response = Http::timeout(30)
+                ->withHeaders([
+                    'Authorization' => 'Basic '.base64_encode((string) config('maya.secret_key').':'),
+                    'Accept' => 'application/json',
+                ])
+                ->get(config('maya.base_url').'/checkout/v1/checkouts/'.$order->checkout_session_id);
+
+            if (! $response->successful()) {
+                Log::warning('Maya Get Checkout reconciliation failed', [
+                    'order_id' => $order->id,
+                    'status' => $response->status(),
+                    'response' => $response->json(),
+                ]);
+
+                return;
+            }
+
+            $payload = $response->json();
+
+            if (! is_array($payload)) {
+                return;
+            }
+
+            $confirmedOrderId = app(MayaPaymentConfirmationService::class)->confirm($order, $payload);
+
+            if ($confirmedOrderId) {
+                $this->dispatchLalamove($confirmedOrderId);
+            }
+        } catch (\Exception $e) {
+            Log::error('Maya Get Checkout reconciliation exception', [
+                'order_id' => $order->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function dispatchLalamove(int $orderId): void
+    {
+        try {
+            app(LalamoveDeliveryService::class)->dispatch(Order::findOrFail($orderId));
+        } catch (\Exception $e) {
+            Log::error('Lalamove dispatch exception', [
+                'order_id' => $orderId,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function phoneForMaya(string $phone): string
+    {
+        return '+63'.substr(preg_replace('/[^0-9]/', '', $phone), -10);
     }
 
     protected function couponFromSession(): ?Coupon
@@ -604,17 +780,5 @@ class CheckoutController extends Controller
             'region' => $data['region'] ?? '',
             'postal' => $data['postal'] ?? '',
         ];
-    }
-
-    protected function redactPaymentResponse(mixed $session): mixed
-    {
-        if (! is_array($session)) {
-            return $session;
-        }
-
-        unset($session['data']['attributes']['billing']);
-        unset($session['data']['attributes']['payment_methods']);
-
-        return $session;
     }
 }

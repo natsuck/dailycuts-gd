@@ -41,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
         View::composer('maindesign', function ($view) {
             if (! Schema::hasTable('sale_banners')) {
                 $view->with('activeSaleBanners', collect());
+                $view->with('tickerBanners', collect());
 
                 return;
             }
@@ -49,6 +50,12 @@ class AppServiceProvider extends ServiceProvider
                 ->orderBy('sort_order')
                 ->orderByDesc('created_at')
                 ->take(3)
+                ->get());
+
+            $view->with('tickerBanners', SaleBanner::active()
+                ->where('show_in_ticker', true)
+                ->orderBy('sort_order')
+                ->orderByDesc('created_at')
                 ->get());
         });
 

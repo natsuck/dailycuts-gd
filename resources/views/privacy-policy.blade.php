@@ -22,7 +22,7 @@
         <p class="text-on-surface-variant mb-3">We may collect the following types of information:</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
           <li><strong>Personal Identification Information:</strong> Name, email address, phone number, and delivery address when you place an order or create an account.</li>
-          <li><strong>Payment Information:</strong> Payment transactions are processed through PayMongo. We do not store your credit card or GCash details on our servers.</li>
+          <li><strong>Payment Information:</strong> Payment transactions are processed through Maya. We do not store your credit card or Maya Wallet details on our servers.</li>
           <li><strong>Order History:</strong> Details of products you have purchased, order dates, and delivery statuses.</li>
           <li><strong>Usage Data:</strong> IP address, browser type, pages visited, time spent on pages, and other diagnostic data collected automatically when you access our website.</li>
           <li><strong>Cookies:</strong> We use cookies and similar tracking technologies to maintain your session and remember your preferences.</li>
@@ -47,7 +47,7 @@
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">4. Sharing Your Information</h2>
         <p class="text-on-surface-variant mb-3">We do not sell your personal information. We may share your data with:</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
-          <li><strong>Payment Processors:</strong> PayMongo, to securely handle your payment transactions.</li>
+          <li><strong>Payment Processors:</strong> Maya, to securely handle your payment transactions.</li>
           <li><strong>Delivery Partners:</strong> Third-party logistics providers who deliver your orders to your specified address.</li>
           <li><strong>Service Providers:</strong> Hosting, analytics, and email service providers that help us operate our website.</li>
           <li><strong>Legal Authorities:</strong> When required by law, court order, or government regulation.</li>

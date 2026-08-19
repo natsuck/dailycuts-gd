@@ -5,7 +5,7 @@
     <a href="{{ $url }}" style="display:inline-block; text-decoration:none;">
 
         <!-- YOUR LOGO -->
-        <img src="https://cubital-abril-humbly.ngrok-free.dev/frontend/images/img3.jpg"
+        <img src="{{ config('app.url') }}/frontend/images/img3.jpg"
             alt="The Daily Cuts"
             style="height:60px; border-radius:50%; margin-bottom:10px;">
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Webhook;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -40,31 +41,61 @@ class LalamoveWebhookController extends Controller
             return response()->json(['status' => 'ignored']);
         }
 
-        $this->syncOrder($order, $data);
+        $this->syncOrder($order, $data, $eventName);
 
         return response()->json(['status' => 'ok']);
     }
 
-    protected function syncOrder(Order $order, array $data): void
+    protected function syncOrder(Order $order, array $data, ?string $eventName = null): void
     {
+        $incoming = ! empty($data['updatedAt']) ? Carbon::parse($data['updatedAt']) : now();
+
+        $last = $order->last_lalamove_webhook_at;
+
+        if ($last && $incoming->lte($last)) {
+            Log::info('Lalamove webhook ignored as out of order.', [
+                'order_id' => $order->id,
+                'lalamove_order_id' => $order->lalamove_order_id,
+                'event' => $eventName,
+                'incoming_updated_at' => $incoming->toIso8601String(),
+                'last_webhook_at' => $last->toIso8601String(),
+            ]);
+
+            return;
+        }
+
+        $order->last_lalamove_webhook_at = $incoming;
+
+        if ($eventName === 'DRIVER_ASSIGNED') {
+            $driver = $data['driver'] ?? [];
+
+            if (is_array($driver)) {
+                $order->lalamove_driver_name = $driver['name'] ?? $order->lalamove_driver_name;
+                $order->lalamove_driver_phone = $driver['phone'] ?? $order->lalamove_driver_phone;
+            }
+        }
+
         $status = $data['status'] ?? null;
 
         if ($status) {
             $order->lalamove_status = $status;
             $order->delivery_status = strtolower($status);
-            $order->save();
         }
 
         if ($status === 'COMPLETED' && $order->status !== 'delivered') {
             $order->status = 'delivered';
-            $order->save();
+        }
+
+        if ($status === 'FAILED' && ! in_array($order->status, ['delivered', 'cancelled', 'failed'], true)) {
+            $order->status = 'failed';
         }
 
         if (in_array($status, ['CANCELED', 'CANCELLED', 'EXPIRED', 'REJECTED'], true)
-            && ! in_array($order->status, ['delivered', 'cancelled'], true)) {
+            && ! in_array($order->status, ['delivered', 'cancelled', 'failed'], true)) {
             $order->status = 'cancelled';
-            $order->save();
         }
+
+        $order->save();
 
         Log::info('Lalamove order status updated.', [
             'order_id' => $order->id,

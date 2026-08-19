@@ -1,18 +1,6 @@
 @extends('maindesign')
 @section('shop')
 
-@if(session('cartMessage'))
-  <div id="cartSnackbar" class="fixed bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-50 bg-inverse-surface text-inverse-on-surface px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 font-body-md transition-all">
-    <span class="material-symbols-outlined text-green-400">check_circle</span> {{ session('cartMessage') }}
-  </div>
-@endif
-
-@if(session('orderMessage'))
-  <div id="cartSnackbar" class="fixed bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-50 bg-inverse-surface text-inverse-on-surface px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 font-body-md transition-all">
-    <span class="material-symbols-outlined text-green-400">check_circle</span> {{ session('orderMessage') }}
-  </div>
-@endif
-
 <main class="max-w-container-max mx-auto px-4 md:px-margin-desktop py-8 md:py-12">
   <div x-data="{ sidebarOpen: false }" class="flex flex-col md:flex-row gap-gutter">
 

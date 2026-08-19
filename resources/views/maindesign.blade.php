@@ -19,6 +19,61 @@
       -webkit-appearance: none;
       margin: 0;
     }
+
+    #cartSnackbar {
+      opacity: 0;
+      transform: translate(-50%, 12px);
+      transition: opacity .25s ease, transform .25s ease;
+      pointer-events: none;
+    }
+
+    #cartSnackbar.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+      pointer-events: auto;
+    }
+
+    .announcement-bar {
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .announcement-track {
+      display: inline-flex;
+      justify-content: flex-start;
+      animation: announcement-scroll 30s linear infinite;
+      will-change: transform;
+    }
+
+    .announcement-track:hover {
+      animation-play-state: paused;
+    }
+
+    .announcement-message {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.5rem 0;
+    }
+
+    .announcement-separator {
+      margin: 0 1.5rem;
+      opacity: 0.6;
+    }
+
+    @keyframes announcement-scroll {
+      from {
+        transform: translateX(-50%);
+      }
+      to {
+        transform: translateX(0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .announcement-track {
+        animation: none;
+      }
+    }
   </style>
 </head>
 
@@ -43,6 +98,26 @@
       </div>
     @endif
   @endauth
+
+  @if ($tickerBanners->isNotEmpty())
+    <div class="announcement-bar w-full" role="region" aria-label="Announcements"
+         style="background-color: {{ $tickerBanners->first()->background_color }}; color: {{ $tickerBanners->first()->text_color }};">
+      <div class="announcement-track" style="animation-duration: {{ max(15, $tickerBanners->count() * 10) }}s">
+        <div class="announcement-message">
+          @foreach($tickerBanners as $banner)
+            <span class="font-label-caps text-label-caps">{{ $banner->title }}</span>
+            <span class="announcement-separator" aria-hidden="true">&bull;</span>
+          @endforeach
+        </div>
+        <div class="announcement-message" aria-hidden="true">
+          @foreach($tickerBanners as $banner)
+            <span class="font-label-caps text-label-caps">{{ $banner->title }}</span>
+            <span class="announcement-separator">&bull;</span>
+          @endforeach
+        </div>
+      </div>
+    </div>
+  @endif
 
   <div x-data="{ mobileMenu: false }">
     <header class="sticky top-0 w-full z-50 bg-surface px-4 md:px-margin-desktop max-w-container-max mx-auto flex items-center justify-between h-16 md:h-20 border-b border-outline-variant">
@@ -235,10 +310,35 @@
     @endauth
   </nav>
 
+  @if (session('cartMessage'))
+    <div id="cartSnackbar" class="fixed bottom-20 md:bottom-8 left-1/2 z-50 bg-inverse-surface text-inverse-on-surface px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 font-body-md">
+      <span class="material-symbols-outlined text-green-400">check_circle</span>
+      <span class="snackbar-message">{{ session('cartMessage') }}</span>
+    </div>
+  @elseif (session('orderMessage'))
+    <div id="cartSnackbar" class="fixed bottom-20 md:bottom-8 left-1/2 z-50 bg-inverse-surface text-inverse-on-surface px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 font-body-md">
+      <span class="material-symbols-outlined text-green-400">check_circle</span>
+      <span class="snackbar-message">{{ session('orderMessage') }}</span>
+    </div>
+  @endif
+
   <script src="{{ asset('frontend/js/jquery-3.7.1.min.js') }}"></script>
   <script src="{{ asset('frontend/js/bootstrap.js') }}"></script>
   <script src="{{ asset('frontend/js/custom.js') }}"></script>
   <script>
+    window.showSnackbar = function (message, type) {
+      var snackbar = document.getElementById("cartSnackbar");
+      if (!snackbar) return;
+      var icon = snackbar.querySelector(".material-symbols-outlined");
+      if (icon) icon.textContent = type === "error" ? "error" : "check_circle";
+      snackbar.querySelector(".snackbar-message").textContent = message;
+      snackbar.classList.add("show");
+      clearTimeout(window._snackbarTimer);
+      window._snackbarTimer = setTimeout(function () {
+        snackbar.classList.remove("show");
+      }, 2200);
+    };
+
     document.addEventListener("DOMContentLoaded", function () {
       const snackbar = document.getElementById("cartSnackbar");
       if (snackbar) {

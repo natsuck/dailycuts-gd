@@ -2,37 +2,166 @@
 
 Use this checklist before publishing The Daily Cuts by GD.
 
-## Environment
+Domain: `thedailycuts.com`
 
-- Set `APP_ENV=production`.
-- Set `APP_DEBUG=false`.
-- Set `APP_URL` to the production HTTPS domain.
-- Generate and keep a strong `APP_KEY`.
-- Configure production MySQL credentials.
-- Configure `PAYMONGO_SECRET` and `PAYMONGO_WEBHOOK_SECRET`.
-- Configure mail credentials and `RESELLER_INQUIRY_EMAIL`.
-- Use `SESSION_SECURE_COOKIE=true` behind HTTPS.
-- Use `LOG_LEVEL=warning` or stricter for production.
-
-## Build And Cache
+## 1. VPS Provisioning (one-time)
 
 ```bash
+# Ubuntu 24.04, minimum 2GB RAM
+apt update && apt upgrade -y
+apt install -y nginx mysql-server \
+  php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml \
+  php8.3-curl php8.3-zip php8.3-gd php8.3-bcmath \
+  composer git cron ufw
+
+# MySQL
+mysql_secure_installation
+mysql -u root -p -e "CREATE DATABASE ecommerce CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -p -e "CREATE USER 'ecommerce'@'localhost' IDENTIFIED BY '<CHANGE_ME>';"
+mysql -u root -p -e "GRANT ALL PRIVILEGES ON ecommerce.* TO 'ecommerce'@'localhost'; FLUSH PRIVILEGES;"
+
+# Firewall
+ufw allow 'Nginx Full'
+ufw allow OpenSSH
+ufw enable
+```
+
+## 2. Environment (.env)
+
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `APP_URL=https://thedailycuts.com`
+- `APP_KEY=<generated, keep secret>`
+- `DB_HOST=127.0.0.1`, `DB_DATABASE=ecommerce`, `DB_USERNAME=ecommerce`, `DB_PASSWORD=<strong>`
+- `SESSION_SECURE_COOKIE=true`
+- `SESSION_DOMAIN=thedailycuts.com`
+- `LOG_LEVEL=warning`
+- `MAIL_MAILER=smtp` with production SMTP credentials
+- `RESELLER_INQUIRY_EMAIL=<real email>`
+- `SHOP_BRANCH_PHONE=<real number>`
+
+### Payment (Maya) — swap when ready
+
+- `MAYA_PUBLIC_KEY=pk_live_...`
+- `MAYA_SECRET_KEY=sk_live_...`
+- `MAYA_MODE=production`
+- `MAYA_WEBHOOK_IPS=` (leave empty to use mode-aware default)
+- Register webhook `https://thedailycuts.com/maya/webhook` in Maya Business Portal
+
+### Delivery (Lalamove) — swap when ready
+
+- `LALAMOVE_API_KEY=<production key>`
+- `LALAMOVE_API_SECRET=<production secret>`
+- `LALAMOVE_SANDBOX=false`
+- `LALAMOVE_WEBHOOK_URL=https://thedailycuts.com/lalamove/webhook`
+
+### Social Login — configure when ready
+
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI=https://thedailycuts.com/auth/google/callback`
+- `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `FACEBOOK_REDIRECT_URI=https://thedailycuts.com/auth/facebook/callback`
+
+## 3. Deploy Application
+
+```bash
+cd /var/www
+git clone <repo-url> thedailycuts.com
+cd thedailycuts.com
+
+# .env setup
+cp .env.example .env
+# Edit .env with production values
+php artisan key:generate   # if APP_KEY not set
+
+# Install and build
 composer install --no-dev --optimize-autoloader
 npm ci
 npm run build
+
+# Laravel setup
 php artisan migrate --force
 php artisan storage:link
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan optimize
+
+# Permissions
+chown -R www-data:www-data /var/www/thedailycuts.com
+chmod -R 775 storage bootstrap/cache
 ```
 
-## Operations
+## 4. Nginx Configuration
 
-- Point the web server document root to `public/`.
-- Run queues with a process manager if `QUEUE_CONNECTION` is not `sync`.
-- Verify the PayMongo webhook endpoint is reachable over HTTPS.
-- Confirm `storage/` and `bootstrap/cache/` are writable by the web server user.
-- Do not run seeders on production unless they are explicitly production-safe.
-- Keep `.env`, logs, and backups outside public web access.
+`/etc/nginx/sites-available/thedailycuts.com`:
+
+```nginx
+server {
+    listen 80;
+    server_name thedailycuts.com www.thedailycuts.com;
+    root /var/www/thedailycuts.com/public;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realroot$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+```
+
+```bash
+ln -s /etc/nginx/sites-available/thedailycuts.com /etc/nginx/sites-enabled/
+rm /etc/nginx/sites-enabled/default   # remove default
+nginx -t && systemctl reload nginx
+```
+
+## 5. SSL (Let's Encrypt)
+
+```bash
+apt install -y certbot python3-certbot-nginx
+certbot --nginx -d thedailycuts.com -d www.thedailycuts.com
+# Auto-renewal is configured by certbot
+```
+
+## 6. Scheduler (cron)
+
+```bash
+crontab -e
+# Add:
+* * * * * cd /var/www/thedailycuts.com && php artisan schedule:run >> /dev/null 2>&1
+```
+
+This runs the `orders:expire-unpaid` command hourly.
+
+## 7. DNS Records
+
+At your domain registrar, create:
+
+| Type | Name | Value |
+|------|------|-------|
+| A | @ | `<VPS_IP>` |
+| A | www | `<VPS_IP>` |
+
+## 8. Post-Launch Verification
+
+- [ ] `https://thedailycuts.com` loads the storefront
+- [ ] `https://thedailycuts.com/up` returns `OK`
+- [ ] Login / register flow works
+- [ ] Product browsing and cart work
+- [ ] Checkout with Maya sandbox keys
+- [ ] Swap to Maya production keys and test real payment
+- [ ] Email delivery (order confirmation) works
+- [ ] `storage/` and `bootstrap/cache/` are writable
+- [ ] Cron job fires: `php artisan schedule:run` manually test

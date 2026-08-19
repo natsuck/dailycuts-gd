@@ -15,7 +15,7 @@ class CustomerMiddleware
             return redirect()->route('login');
         }
 
-        if (Auth::user()->user_type !== 'user') {
+        if (! Auth::user()->isCustomer() && ! Auth::user()->isAdmin()) {
             abort(403, 'Unauthorized access.');
         }
 

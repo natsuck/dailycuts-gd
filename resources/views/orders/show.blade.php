@@ -27,6 +27,7 @@
             'delivered' => 'bg-green-100 text-green-800 border-green-300',
             'cancelled' => 'bg-red-100 text-red-800 border-red-300',
             'returned' => 'bg-orange-100 text-orange-800 border-orange-300',
+            'failed' => 'bg-red-100 text-red-800 border-red-300',
           ];
         @endphp
         <span class="inline-block px-3 py-1 rounded border text-sm font-bold uppercase {{ $statusColors[$order->status] ?? 'bg-gray-100 text-gray-800 border-gray-300' }}">
@@ -36,7 +37,7 @@
     </div>
 
     {{-- Tracking Steps --}}
-    @if(!in_array($order->status, ['cancelled', 'returned']))
+    @if(!in_array($order->status, ['cancelled', 'returned', 'failed']))
       <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 mb-8">
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-6">Order Tracking</h2>
         <div class="flex items-center justify-between relative">
@@ -218,7 +219,8 @@ document.addEventListener('DOMContentLoaded', function() {
     'CANCELED': 'Delivery was cancelled.',
     'CANCELLED': 'Delivery was cancelled.',
     'EXPIRED': 'Delivery expired.',
-    'REJECTED': 'Delivery was rejected.'
+    'REJECTED': 'Delivery was rejected.',
+    'FAILED': 'Delivery failed.'
   };
 
   function render(data) {
@@ -228,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
       badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-blue-100 text-blue-800 border-blue-300';
       if (status === 'COMPLETED') {
         badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-green-100 text-green-800 border-green-300';
-      } else if (['CANCELED', 'CANCELLED', 'EXPIRED', 'REJECTED'].indexOf(status) !== -1) {
+      } else if (['CANCELED', 'CANCELLED', 'EXPIRED', 'REJECTED', 'FAILED'].indexOf(status) !== -1) {
         badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-red-100 text-red-800 border-red-300';
       }
     }

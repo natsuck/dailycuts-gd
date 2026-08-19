@@ -34,6 +34,7 @@ class AdminSaleBannerController extends Controller
     {
         $validated = $this->validateBanner($request);
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['show_in_ticker'] = $request->boolean('show_in_ticker');
         $validated['sort_order'] = (int) ($validated['sort_order'] ?? 0);
 
         if ($request->hasFile('image')) {
@@ -58,6 +59,7 @@ class AdminSaleBannerController extends Controller
     {
         $validated = $this->validateBanner($request);
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['show_in_ticker'] = $request->boolean('show_in_ticker');
         $validated['sort_order'] = (int) ($validated['sort_order'] ?? 0);
 
         if ($request->hasFile('image')) {

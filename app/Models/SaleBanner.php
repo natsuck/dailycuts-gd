@@ -23,12 +23,14 @@ class SaleBanner extends Model
         'starts_at',
         'ends_at',
         'is_active',
+        'show_in_ticker',
     ];
 
     protected $casts = [
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'is_active' => 'boolean',
+        'show_in_ticker' => 'boolean',
         'sort_order' => 'integer',
     ];
 

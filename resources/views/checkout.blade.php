@@ -110,6 +110,7 @@
                   type="text"
                   required
                   maxlength="255"
+                  autocomplete="off"
                 >
                 @error('address')
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
@@ -124,6 +125,7 @@
                   placeholder="Unit 4B"
                   type="text"
                   maxlength="255"
+                  autocomplete="off"
                 >
                 @error('address2')
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
@@ -139,7 +141,7 @@
                   type="text"
                   required
                   maxlength="255"
-                  autocomplete="address-level4"
+                  autocomplete="off"
                 >
                 @error('barangay')
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
@@ -328,7 +330,7 @@
               </button>
               <div class="flex items-start gap-2 p-3 bg-surface-container-low rounded-lg text-xs text-on-surface-variant">
                 <span class="material-symbols-outlined text-primary text-sm">open_in_new</span>
-                <p>After placing your order, you will be transferred to PayMongo's secure checkout to complete your payment via GCash or credit/debit card.</p>
+                <p>After placing your order, you will be transferred to Maya's secure checkout to complete your payment via Maya Wallet or credit/debit card.</p>
               </div>
               <p class="text-center text-xs text-on-surface-variant mt-4">
                 By clicking "Place Order", you agree to The Daily Cuts <a class="underline" href="{{ route('terms.conditions') }}" target="_blank" rel="noopener noreferrer">Terms of Service</a>, <a class="underline" href="{{ route('privacy.policy') }}" target="_blank" rel="noopener noreferrer">Privacy Policy</a>, and <a class="underline" href="{{ route('store.policies') }}#refund-policy" target="_blank" rel="noopener noreferrer">Refund Policy</a>.

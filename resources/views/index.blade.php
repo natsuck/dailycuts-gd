@@ -1,17 +1,5 @@
 @extends('maindesign')
 @section('index')
-  @if (session('cartMessage'))
-    <div
-      id="cartSnackbar"
-      class="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg bg-inverse-surface px-6 py-3 font-body-md text-inverse-on-surface shadow-lg transition-all md:bottom-8"
-    >
-      <span class="material-symbols-outlined text-green-400">check_circle</span>
-      {{ session('cartMessage') }}
-    </div>
-    @php
-      session()->forget('cartMessage');
-    @endphp
-  @endif
 
   <script>
     window.heroSlides = @json($slides);

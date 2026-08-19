@@ -307,6 +307,7 @@
                                         <option value="delivered" {{ $orderStatus === 'delivered' ? 'selected' : '' }}>Delivered</option>
                                         <option value="cancelled" {{ $orderStatus === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
                                         <option value="returned" {{ $orderStatus === 'returned' ? 'selected' : '' }}>Returned</option>
+                                        <option value="failed" {{ $orderStatus === 'failed' ? 'selected' : '' }}>Failed</option>
                                     </select>
 
                                     <button type="submit" class="btn btn-sm btn-primary btn-block mt-2">

@@ -7,8 +7,10 @@ use App\Models\InventoryHistory;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
 use App\Services\GeocodingService;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 function validCheckoutPayload(): array
@@ -28,6 +30,18 @@ function validCheckoutPayload(): array
     ];
 }
 
+/**
+ * Returns the recorded Create Checkout requests, excluding unrelated calls
+ * made during checkout (Lalamove quotes, geocoding, etc.).
+ */
+function mayaCreateCheckoutRequests(): array
+{
+    return collect(Http::recorded())
+        ->filter(fn (array $pair) => str_contains((string) $pair[0]->url(), '/checkout/v1/checkouts'))
+        ->values()
+        ->all();
+}
+
 test('guests are redirected to login at checkout', function () {
     $this->get('/checkout')->assertRedirect('/login');
 });
@@ -45,11 +59,9 @@ test('checkout with an empty cart redirects to the shop', function () {
 
 test('placing an order reserves stock and records inventory history', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response([
-            'data' => [
-                'id' => 'cs_test_123',
-                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_test_123'],
-            ],
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_test_123',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_test_123',
         ], 200),
     ]);
 
@@ -63,7 +75,7 @@ test('placing an order reserves stock and records inventory history', function (
 
     $this->actingAs($user)
         ->post('/checkout/place-order', validCheckoutPayload())
-        ->assertRedirect('https://checkout.paymongo.com/cs_test_123');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_test_123');
 
     $order = Order::where('user_id', $user->id)->first();
 
@@ -71,17 +83,50 @@ test('placing an order reserves stock and records inventory history', function (
     expect($order->status)->toBe('pending');
     expect($order->payment_status)->toBe('unpaid');
     expect($order->checkout_session_id)->toBe('cs_test_123');
+    expect($order->payment_request_reference)->not->toBeNull();
     expect($product->fresh()->product_quantity)->toBe(3);
     expect(InventoryHistory::where('reference_id', $order->id)->where('type', 'sale')->count())->toBe(1);
 });
 
+test('placing an order collapses a duplicated street address', function () {
+    Http::fake([
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_norm_1',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_norm_1',
+        ], 200),
+    ]);
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $payload = validCheckoutPayload();
+    $payload['address'] = '2461 P Villanueva St Pasay City 2461 P Villanueva St Pasay City';
+    $payload['address2'] = '';
+    $payload['barangay'] = '91';
+    $payload['city'] = 'Pasay';
+    $payload['region'] = 'Metro Manila';
+    $payload['postal'] = '1300';
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', $payload)
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_norm_1');
+
+    $order = Order::where('user_id', $user->id)->first();
+
+    expect($order)->not->toBeNull();
+    expect($order->address)->toBe('2461 P Villanueva St, 91, Pasay, Metro Manila 1300');
+});
+
 test('resubmitting the same checkout form does not create a second order', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response([
-            'data' => [
-                'id' => 'cs_dup_1',
-                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_dup_1'],
-            ],
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_dup_1',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_dup_1',
         ], 200),
     ]);
 
@@ -98,14 +143,14 @@ test('resubmitting the same checkout form does not create a second order', funct
 
     $this->actingAs($user)
         ->post('/checkout/place-order', $payload)
-        ->assertRedirect('https://checkout.paymongo.com/cs_dup_1');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_dup_1');
 
     $this->actingAs($user)
         ->post('/checkout/place-order', $payload)
-        ->assertRedirect('https://checkout.paymongo.com/cs_dup_1');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_dup_1');
 
     expect(Order::count())->toBe(1);
-    expect(Order::first()->checkout_session_url)->toBe('https://checkout.paymongo.com/cs_dup_1');
+    expect(Order::first()->checkout_session_url)->toBe('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_dup_1');
     expect($product->fresh()->product_quantity)->toBe(3);
 });
 
@@ -113,15 +158,13 @@ test('a distinct idempotency key issues a new order', function () {
     $count = 0;
 
     Http::fake([
-        'api.paymongo.com/*' => function (\Illuminate\Http\Client\Request $request) use (&$count) {
+        'pg-sandbox.paymaya.com/*' => function (Request $request) use (&$count) {
             $count++;
             $id = 'cs_key_fresh_'.$count;
 
             return Http::response([
-                'data' => [
-                    'id' => $id,
-                    'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/'.$id],
-                ],
+                'checkoutId' => $id,
+                'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id='.$id,
             ], 200);
         },
     ]);
@@ -136,11 +179,11 @@ test('a distinct idempotency key issues a new order', function () {
 
     $this->actingAs($user)
         ->post('/checkout/place-order', [...validCheckoutPayload(), 'idempotency_key' => 'key-checkout-1'])
-        ->assertRedirect('https://checkout.paymongo.com/cs_key_fresh_1');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_key_fresh_1');
 
     $this->actingAs($user)
         ->post('/checkout/place-order', [...validCheckoutPayload(), 'idempotency_key' => 'key-checkout-2'])
-        ->assertRedirect('https://checkout.paymongo.com/cs_key_fresh_2');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_key_fresh_2');
 
     expect(Order::count())->toBe(2);
     expect($product->fresh()->product_quantity)->toBe(1);
@@ -173,17 +216,15 @@ test('resubmitting a form for an already paid order does not create a duplicate'
 
 test('order items record the variant used at checkout', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response([
-            'data' => [
-                'id' => 'cs_test_variant',
-                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_test_variant'],
-            ],
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_test_variant',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_test_variant',
         ], 200),
     ]);
 
     $user = User::factory()->create();
     $product = Product::factory()->create(['product_quantity' => 5]);
-    $variant = App\Models\ProductVariant::factory()->create([
+    $variant = ProductVariant::factory()->create([
         'product_id' => $product->id,
         'quantity' => 5,
     ]);
@@ -242,9 +283,9 @@ test('checkout validates the order payload', function () {
     expect(Order::count())->toBe(0);
 });
 
-test('paymongo failure releases reserved stock and deletes the order', function () {
+test('maya failure releases reserved stock and deletes the order', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response(['errors' => ['message' => 'gateway error']], 400),
+        'pg-sandbox.paymaya.com/*' => Http::response(['errors' => ['message' => 'gateway error']], 400),
     ]);
 
     $user = User::factory()->create();
@@ -263,6 +304,98 @@ test('paymongo failure releases reserved stock and deletes the order', function 
 
     expect(Order::count())->toBe(0);
     expect(OrderItem::count())->toBe(0);
+    expect($product->fresh()->product_quantity)->toBe(5);
+});
+
+test('a transient Maya failure is retried and the order still goes through', function () {
+    Http::fake([
+        'pg-sandbox.paymaya.com/*' => Http::sequence()
+            ->push(null, 504)
+            ->push([
+                'checkoutId' => 'cs_retry_1',
+                'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_retry_1',
+            ], 200),
+    ]);
+
+    config(['maya.checkout_retry_delay_ms' => 0]);
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', validCheckoutPayload())
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_retry_1');
+
+    expect(mayaCreateCheckoutRequests())->toHaveCount(2);
+
+    $order = Order::where('user_id', $user->id)->first();
+
+    expect($order)->not->toBeNull();
+    expect($order->checkout_session_id)->toBe('cs_retry_1');
+    expect($order->payment_request_reference)->not->toBeNull();
+    expect($product->fresh()->product_quantity)->toBe(3);
+});
+
+test('exhausted transient Maya failures show the temporary unavailability message', function () {
+    Http::fake([
+        'pg-sandbox.paymaya.com/*' => Http::sequence()
+            ->push(null, 504)
+            ->push(null, 504)
+            ->push(null, 504),
+    ]);
+
+    config(['maya.checkout_retry_delay_ms' => 0]);
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->from('/checkout')
+        ->post('/checkout/place-order', validCheckoutPayload())
+        ->assertRedirect('/checkout')
+        ->assertSessionHasErrors(['checkout' => 'Payment gateway is temporarily unavailable. Please try again in a few minutes.']);
+
+    expect(mayaCreateCheckoutRequests())->toHaveCount(3);
+
+    expect(Order::count())->toBe(0);
+    expect(OrderItem::count())->toBe(0);
+    expect($product->fresh()->product_quantity)->toBe(5);
+});
+
+test('a non-transient Maya failure is not retried', function () {
+    Http::fake([
+        'pg-sandbox.paymaya.com/*' => Http::response(['errors' => ['message' => 'gateway error']], 400),
+    ]);
+
+    config(['maya.checkout_retry_delay_ms' => 0]);
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->from('/checkout')
+        ->post('/checkout/place-order', validCheckoutPayload())
+        ->assertRedirect('/checkout')
+        ->assertSessionHasErrors(['checkout' => 'Payment gateway returned an error. Please try again.']);
+
+    expect(mayaCreateCheckoutRequests())->toHaveCount(1);
+
+    expect(Order::count())->toBe(0);
     expect($product->fresh()->product_quantity)->toBe(5);
 });
 
@@ -384,11 +517,9 @@ test('removing an applied coupon clears it from the session', function () {
 
 test('placing an order with a coupon stores the discount and records usage', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response([
-            'data' => [
-                'id' => 'cs_coupon_1',
-                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_coupon_1'],
-            ],
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_coupon_1',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coupon_1',
         ], 200),
     ]);
 
@@ -406,7 +537,7 @@ test('placing an order with a coupon stores the discount and records usage', fun
 
     $this->actingAs($user)
         ->post('/checkout/place-order', validCheckoutPayload())
-        ->assertRedirect('https://checkout.paymongo.com/cs_coupon_1');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coupon_1');
 
     $order = Order::where('user_id', $user->id)->first();
 
@@ -439,11 +570,9 @@ test('free shipping coupon waives the delivery fee estimate', function () {
 
 test('free shipping coupon makes the order shipping free', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response([
-            'data' => [
-                'id' => 'cs_freeship',
-                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_freeship'],
-            ],
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_freeship',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_freeship',
         ], 200),
     ]);
 
@@ -461,7 +590,7 @@ test('free shipping coupon makes the order shipping free', function () {
 
     $this->actingAs($user)
         ->post('/checkout/place-order', validCheckoutPayload())
-        ->assertRedirect('https://checkout.paymongo.com/cs_freeship');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_freeship');
 
     $order = Order::where('user_id', $user->id)->first();
 
@@ -473,11 +602,9 @@ test('free shipping coupon makes the order shipping free', function () {
 
 test('placing an order stores provided delivery coordinates without geocoding', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response([
-            'data' => [
-                'id' => 'cs_coords',
-                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_coords'],
-            ],
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_coords',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords',
         ], 200),
     ]);
 
@@ -505,7 +632,7 @@ test('placing an order stores provided delivery coordinates without geocoding', 
 
     $this->actingAs($user)
         ->post('/checkout/place-order', $payload)
-        ->assertRedirect('https://checkout.paymongo.com/cs_coords');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords');
 
     $order = Order::where('user_id', $user->id)->first();
 
@@ -515,11 +642,9 @@ test('placing an order stores provided delivery coordinates without geocoding', 
 
 test('placing an order ignores coordinates that do not match the address and falls back to geocoding', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response([
-            'data' => [
-                'id' => 'cs_coords_spoof',
-                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_coords_spoof'],
-            ],
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_coords_spoof',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords_spoof',
         ], 200),
     ]);
 
@@ -547,7 +672,7 @@ test('placing an order ignores coordinates that do not match the address and fal
 
     $this->actingAs($user)
         ->post('/checkout/place-order', $payload)
-        ->assertRedirect('https://checkout.paymongo.com/cs_coords_spoof');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords_spoof');
 
     $order = Order::where('user_id', $user->id)->first();
 
@@ -557,11 +682,9 @@ test('placing an order ignores coordinates that do not match the address and fal
 
 test('placing an order falls back to geocoding for out-of-bounds coordinates', function () {
     Http::fake([
-        'api.paymongo.com/*' => Http::response([
-            'data' => [
-                'id' => 'cs_coords_fallback',
-                'attributes' => ['checkout_url' => 'https://checkout.paymongo.com/cs_coords_fallback'],
-            ],
+        'pg-sandbox.paymaya.com/*' => Http::response([
+            'checkoutId' => 'cs_coords_fallback',
+            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords_fallback',
         ], 200),
     ]);
 
@@ -584,7 +707,7 @@ test('placing an order falls back to geocoding for out-of-bounds coordinates', f
 
     $this->actingAs($user)
         ->post('/checkout/place-order', $payload)
-        ->assertRedirect('https://checkout.paymongo.com/cs_coords_fallback');
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords_fallback');
 
     $order = Order::where('user_id', $user->id)->first();
 
@@ -639,4 +762,173 @@ test('shipping estimate uses provided coordinates without geocoding', function (
         ->assertOk()
         ->assertJsonStructure(['shippingFee', 'source'])
         ->assertJson(['source' => 'flat_rate']);
+});
+
+test('the Maya checkout request sends numeric amounts and accepts JSON', function () {
+    $sentRequest = null;
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/*' => function (Request $request) use (&$sentRequest) {
+            $sentRequest = $request;
+
+            return Http::response([
+                'checkoutId' => 'cs_numeric',
+                'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_numeric',
+            ], 200);
+        },
+    ]);
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_price' => 100, 'product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->post('/checkout/place-order', validCheckoutPayload())
+        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_numeric');
+
+    expect($sentRequest)->not->toBeNull();
+    expect($sentRequest->hasHeader('Accept'))->toBeTrue();
+    expect($sentRequest->header('Accept'))->toContain('application/json');
+
+    $body = $sentRequest->data();
+    expect(is_string($body['totalAmount']['value']))->toBeFalse();
+    expect($body['totalAmount']['value'])->toBe(350.0);
+    expect($body['totalAmount']['details']['subtotal'])->toBe('200.00');
+    expect($body['totalAmount']['details']['shippingFee'])->toBe('150.00');
+    expect(is_string($body['items'][0]['amount']['value']))->toBeFalse();
+    expect($body['items'][0]['amount']['value'])->toBe(100.0);
+    expect($body['items'][0]['totalAmount']['value'])->toBe(200.0);
+    expect($body['items'][1]['name'])->toBe('Delivery Fee');
+    expect($body['items'][1]['amount']['value'])->toBe(150.0);
+});
+
+test('checkout success reconciles an unpaid order and marks it paid', function () {
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+        'total' => 350.00,
+        'checkout_session_id' => 'cs_recon_1',
+        'payment_request_reference' => 'rrn_recon_1',
+    ]);
+    OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+    $product->decrement('product_quantity', 2);
+    Cart::factory()->create(['user_id' => $user->id]);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/cs_recon_1' => Http::response([
+            'id' => 'cs_recon_1',
+            'status' => 'COMPLETED',
+            'paymentStatus' => 'PAYMENT_SUCCESS',
+            'totalAmount' => ['value' => '350.00', 'currency' => 'PHP'],
+            'paymentScheme' => 'master-card',
+            'requestReferenceNumber' => 'rrn_recon_1',
+        ], 200),
+    ]);
+
+    $this->actingAs($user)
+        ->get('/checkout/success?order_id='.$order->id)
+        ->assertRedirect(route('orders.show', $order->id))
+        ->assertSessionHas('orderMessage', 'Payment received! We are processing your order.');
+
+    $order->refresh();
+    expect($order->payment_status)->toBe('paid');
+    expect($order->payment_method)->toBe('card');
+    expect($order->payment_intent_id)->toBe('cs_recon_1');
+    expect(Cart::where('user_id', $user->id)->count())->toBe(0);
+});
+
+test('the order placed snackbar renders on the order confirmation page', function () {
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'status' => 'processing',
+        'payment_status' => 'paid',
+        'total' => 350.00,
+        'checkout_session_id' => 'cs_snackbar_1',
+    ]);
+
+    $this->actingAs($user)
+        ->get('/checkout/success?order_id='.$order->id)
+        ->assertRedirect(route('orders.show', $order->id))
+        ->assertSessionHas('orderMessage', 'Payment received! We are processing your order.');
+
+    $this->get(route('orders.show', $order->id))
+        ->assertOk()
+        ->assertSee('id="cartSnackbar"', false)
+        ->assertSee('Payment received! We are processing your order.');
+});
+
+test('checkout success keeps the order unpaid when Maya reports no payment', function () {
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+        'total' => 350.00,
+        'checkout_session_id' => 'cs_recon_unpaid',
+        'payment_request_reference' => 'rrn_recon_unpaid',
+    ]);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/cs_recon_unpaid' => Http::response([
+            'id' => 'cs_recon_unpaid',
+            'status' => 'PENDING_PAYMENT',
+            'paymentStatus' => 'PENDING_PAYMENT',
+            'totalAmount' => ['value' => '350.00', 'currency' => 'PHP'],
+            'requestReferenceNumber' => 'rrn_recon_unpaid',
+        ], 200),
+    ]);
+
+    $this->actingAs($user)
+        ->get('/checkout/success?order_id='.$order->id)
+        ->assertRedirect(route('orders.show', $order->id))
+        ->assertSessionHas('orderMessage', 'Payment is being processed. We will confirm your order once payment is verified.');
+
+    expect($order->refresh()->payment_status)->toBe('unpaid');
+});
+
+test('checkout success is graceful when the Maya Get Checkout call fails', function () {
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+        'total' => 350.00,
+        'checkout_session_id' => 'cs_recon_err',
+        'payment_request_reference' => 'rrn_recon_err',
+    ]);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/cs_recon_err' => Http::response(['errors' => ['message' => 'invalid']], 401),
+    ]);
+
+    $this->actingAs($user)
+        ->get('/checkout/success?order_id='.$order->id)
+        ->assertRedirect(route('orders.show', $order->id));
+
+    expect($order->refresh()->payment_status)->toBe('unpaid');
+});
+
+test('checkout place-order is throttled to prevent stock hoarding', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
+    for ($i = 0; $i < 10; $i++) {
+        $this->post('/checkout/place-order', [])->assertRedirect();
+    }
+
+    $this->post('/checkout/place-order', [])
+        ->assertTooManyRequests();
 });

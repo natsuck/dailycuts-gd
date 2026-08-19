@@ -28,6 +28,22 @@ test('authenticated user can add a product to the cart', function () {
     ]);
 });
 
+test('adding a product to the cart renders the added-to-cart snackbar', function () {
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+
+    $this->actingAs($user)
+        ->from('/shop')
+        ->post('/cart/'.$product->id)
+        ->assertRedirect('/shop')
+        ->assertSessionHas('cartMessage', 'Added to cart.');
+
+    $this->get('/shop')
+        ->assertOk()
+        ->assertSee('id="cartSnackbar"', false)
+        ->assertSee('Added to cart.');
+});
+
 test('adding the same product merges quantities into one cart row', function () {
     $user = User::factory()->create();
     $product = Product::factory()->create(['product_quantity' => 10]);

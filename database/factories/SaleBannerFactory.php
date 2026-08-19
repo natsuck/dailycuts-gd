@@ -6,7 +6,7 @@ use App\Models\SaleBanner;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\SaleBanner>
+ * @extends Factory<SaleBanner>
  */
 class SaleBannerFactory extends Factory
 {
@@ -27,6 +27,7 @@ class SaleBannerFactory extends Factory
             'starts_at' => null,
             'ends_at' => null,
             'is_active' => true,
+            'show_in_ticker' => false,
         ];
     }
 }
