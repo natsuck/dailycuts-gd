@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Review;
 use App\Services\LalamoveService;
 use Illuminate\Support\Facades\Auth;
 
@@ -30,7 +31,13 @@ class OrderController extends Controller
             $currentIndex = $order->status === 'cancelled' ? -1 : 0;
         }
 
-        return view('orders.show', compact('order', 'steps', 'currentIndex'));
+        $productIds = $order->items->pluck('product_id')->filter()->values();
+        $existingReviews = Review::where('user_id', Auth::id())
+            ->whereIn('product_id', $productIds)
+            ->get()
+            ->keyBy('product_id');
+
+        return view('orders.show', compact('order', 'steps', 'currentIndex', 'existingReviews'));
     }
 
     /**

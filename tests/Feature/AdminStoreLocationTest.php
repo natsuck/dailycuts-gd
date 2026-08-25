@@ -35,7 +35,7 @@ test('store locations routes are protected', function () {
     $user = User::factory()->create();
     $this->actingAs($user)
         ->get(route('admin.store-locations.index'))
-        ->assertStatus(401);
+        ->assertStatus(403);
 });
 
 test('admin can create a store location and set it as pickup', function () {

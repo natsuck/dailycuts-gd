@@ -73,11 +73,14 @@ class SocialLoginController extends Controller
                 'name' => $socialUser->getName() ?: $socialUser->getEmail(),
                 'email' => $email,
                 'password' => null,
+            ]);
+
+            $user->forceFill([
                 'user_type' => 'user',
                 'oauth_provider' => $provider,
                 'oauth_id' => $oauthId,
                 'email_verified_at' => $emailVerified ? now() : null,
-            ]);
+            ])->save();
         } else {
             $user->forceFill([
                 'oauth_provider' => $provider,

@@ -16,7 +16,6 @@ class Coupon extends Model
         'min_order',
         'max_discount',
         'usage_limit',
-        'used_count',
         'is_active',
         'starts_at',
         'expires_at',

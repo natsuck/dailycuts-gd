@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InventoryService
@@ -51,13 +52,17 @@ class InventoryService
 
     public function release(Order $order): void
     {
-        foreach ($order->items as $item) {
-            if ($item->variant_id) {
-                ProductVariant::whereKey($item->variant_id)->increment('quantity', $item->quantity);
-            } else {
-                Product::whereKey($item->product_id)->increment('product_quantity', $item->quantity);
+        DB::transaction(function () use ($order) {
+            foreach ($order->items as $item) {
+                if ($item->variant_id) {
+                    ProductVariant::lockForUpdate()->whereKey($item->variant_id)
+                        ->increment('quantity', $item->quantity);
+                } else {
+                    Product::lockForUpdate()->whereKey($item->product_id)
+                        ->increment('product_quantity', $item->quantity);
+                }
             }
-        }
+        });
     }
 
     protected function logHistory(Order $order, Cart $item, int $before, int $after): void

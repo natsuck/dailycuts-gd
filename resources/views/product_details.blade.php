@@ -13,8 +13,8 @@
       <div class="aspect-square bg-surface-container-low border border-outline-variant overflow-hidden group">
         <img id="detailMainImage" alt="{{ $product->product_title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" src="{{ asset('products/'.$product->product_image) }}">
       </div>
-      <div class="grid grid-cols-4 gap-2 md:gap-4">
-        <button type="button" class="aspect-square border-2 border-primary overflow-hidden thumb-active">
+      <div class="flex gap-2 md:gap-4">
+        <button type="button" class="aspect-square w-20 md:w-24 border-2 border-primary overflow-hidden thumb-active">
           <img alt="{{ $product->product_title }}" class="w-full h-full object-cover" src="{{ asset('products/'.$product->product_image) }}">
         </button>
       </div>
@@ -141,50 +141,73 @@
     </div>
   </section>
 
-  <section class="mt-section-gap">
+  <section class="mt-section-gap" id="reviews">
     <h2 class="font-headline-md text-headline-md mb-6">Customer Reviews ({{ $product->reviewCount() }})</h2>
 
     @auth
-      <div class="bg-surface-container-low p-6 rounded-lg mb-8">
-        <h3 class="font-headline-sm text-headline-sm mb-4">Write a Review</h3>
-        @if($existingReview = $product->reviews()->where('user_id', Auth::id())->first())
-          <p class="text-on-surface-variant mb-4">You&apos;ve already reviewed this product. You can update your review below.</p>
-        @endif
-        <form action="{{ route('reviews.store', $product->id) }}" method="POST">
-          @csrf
-          <div class="mb-4">
-            <label class="block font-body-md text-body-md text-on-surface mb-2">Rating</label>
-            <div class="flex gap-1" id="ratingStars">
-              @for($i = 1; $i <= 5; $i++)
-                <button type="button" onclick="setRating({{ $i }})" class="text-on-surface-variant hover:text-tertiary transition-colors">
-                  <span class="material-symbols-outlined star-btn" data-rating="{{ $i }}" style="font-variation-settings: 'FILL' {{ ($existingReview && $existingReview->rating >= $i) ? 1 : 0 }};">star</span>
-                </button>
-              @endfor
-              <input type="hidden" name="rating" id="ratingInput" value="{{ $existingReview?->rating ?? '' }}">
+      @php
+        $hasDeliveredOrder = \App\Models\OrderItem::where('product_id', $product->id)
+            ->whereHas('order', function ($q) {
+                $q->where('user_id', Auth::id())
+                    ->where('payment_status', 'paid')
+                    ->where('status', 'delivered');
+            })->exists();
+        $existingReview = $product->reviews()->where('user_id', Auth::id())->first();
+      @endphp
+
+      @if($hasDeliveredOrder || $existingReview)
+        <div class="bg-surface-container-low p-6 rounded-lg mb-8" id="review-form">
+          <h3 class="font-headline-sm text-headline-sm mb-4">Write a Review</h3>
+          @if($existingReview)
+            <p class="text-on-surface-variant mb-4">You&apos;ve already reviewed this product. You can update your review below.</p>
+          @endif
+          <form action="{{ route('reviews.store', $product->id) }}" method="POST" enctype="multipart/form-data">
+            @csrf
+            <div class="mb-4">
+              <label class="block font-body-md text-body-md text-on-surface mb-2">Rating</label>
+              <div class="flex gap-1" id="ratingStars">
+                @for($i = 1; $i <= 5; $i++)
+                  <button type="button" onclick="setRating({{ $i }})" class="text-on-surface-variant hover:text-tertiary transition-colors">
+                    <span class="material-symbols-outlined star-btn" data-rating="{{ $i }}" style="font-variation-settings: 'FILL' {{ ($existingReview && $existingReview->rating >= $i) ? 1 : 0 }};">star</span>
+                  </button>
+                @endfor
+                <input type="hidden" name="rating" id="ratingInput" value="{{ $existingReview?->rating ?? '' }}">
+              </div>
+              @error('rating')<p class="text-error text-body-sm mt-1">{{ $message }}</p>@enderror
             </div>
-            @error('rating')<p class="text-error text-body-sm mt-1">{{ $message }}</p>@enderror
-          </div>
-          <div class="mb-4">
-            <label class="block font-body-md text-body-md text-on-surface mb-2">Title (optional)</label>
-            <input type="text" name="title" value="{{ $existingReview?->title }}" class="w-full border border-outline-variant rounded-lg px-4 py-2 bg-surface focus:ring-primary focus:border-primary" maxlength="255">
-          </div>
-          <div class="mb-4">
-            <label class="block font-body-md text-body-md text-on-surface mb-2">Your Review</label>
-            <textarea name="body" rows="3" class="w-full border border-outline-variant rounded-lg px-4 py-2 bg-surface focus:ring-primary focus:border-primary" maxlength="2000">{{ $existingReview?->body }}</textarea>
-            @error('body')<p class="text-error text-body-sm mt-1">{{ $message }}</p>@enderror
-          </div>
-          <button type="submit" class="bg-primary text-white px-6 py-2 rounded-lg font-bold hover:opacity-90 transition-all">
-            {{ $existingReview ? 'Update Review' : 'Submit Review' }}
-          </button>
-        </form>
-      </div>
+            <div class="mb-4">
+              <label class="block font-body-md text-body-md text-on-surface mb-2">Title (optional)</label>
+              <input type="text" name="title" value="{{ $existingReview?->title }}" class="w-full border border-outline-variant rounded-lg px-4 py-2 bg-surface focus:ring-primary focus:border-primary" maxlength="255">
+            </div>
+            <div class="mb-4">
+              <label class="block font-body-md text-body-md text-on-surface mb-2">Your Review</label>
+              <textarea name="body" rows="3" class="w-full border border-outline-variant rounded-lg px-4 py-2 bg-surface focus:ring-primary focus:border-primary" maxlength="2000">{{ $existingReview?->body }}</textarea>
+              @error('body')<p class="text-error text-body-sm mt-1">{{ $message }}</p>@enderror
+            </div>
+            <div class="mb-4">
+              <label class="block font-body-md text-body-md text-on-surface mb-2">Photos (optional, max 5)</label>
+              <input type="file" name="images[]" id="reviewImages" multiple accept="image/jpg,image/jpeg,image/png,image/webp" class="w-full border border-outline-variant rounded-lg px-4 py-2 bg-surface focus:ring-primary focus:border-primary text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-white file:font-bold file:text-sm file:cursor-pointer file:hover:opacity-90">
+              @error('images')<p class="text-error text-body-sm mt-1">{{ $message }}</p>@enderror
+              @error('images.*')<p class="text-error text-body-sm mt-1">{{ $message }}</p>@enderror
+              <div id="imagePreview" class="flex flex-wrap gap-2 mt-2"></div>
+            </div>
+            <button type="submit" class="bg-primary text-white px-6 py-2 rounded-lg font-bold hover:opacity-90 transition-all">
+              {{ $existingReview ? 'Update Review' : 'Submit Review' }}
+            </button>
+          </form>
+        </div>
+      @else
+        <div class="bg-surface-container-low p-6 rounded-lg mb-8 text-center">
+          <p class="text-on-surface-variant">You can review this product after your order is delivered.</p>
+        </div>
+      @endif
     @else
       <div class="bg-surface-container-low p-6 rounded-lg mb-8 text-center">
         <p class="text-on-surface-variant mb-2">Please <a href="{{ route('login') }}" class="text-primary font-bold hover:underline">log in</a> to write a review.</p>
       </div>
     @endauth
 
-    @forelse($product->reviews()->with('user')->latest()->get() as $review)
+    @forelse($reviews as $review)
       <div class="border-b border-outline-variant py-6">
         <div class="flex items-center gap-3 mb-2">
           <div class="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold text-sm">
@@ -205,7 +228,16 @@
         @if($review->title)
           <h4 class="font-bold text-on-surface mb-1">{{ $review->title }}</h4>
         @endif
-        <p class="text-on-surface-variant">{{ $review->body }}</p>
+        <p class="text-on-surface-variant mb-3">{{ $review->body }}</p>
+        @if($review->images && count($review->images) > 0)
+          <div class="flex flex-wrap gap-2 mb-3">
+            @foreach($review->images as $image)
+              <a href="{{ asset('reviews/'.$image) }}" target="_blank" rel="noopener noreferrer" class="block w-20 h-20 rounded-lg overflow-hidden border border-outline-variant hover:border-primary transition-colors">
+                <img src="{{ asset('reviews/'.$image) }}" alt="Review photo" loading="lazy" class="w-full h-full object-cover">
+              </a>
+            @endforeach
+          </div>
+        @endif
         @auth
           @if(Auth::id() === $review->user_id)
             <form action="{{ route('reviews.destroy', $review->id) }}" method="POST" class="mt-2">
@@ -219,6 +251,12 @@
     @empty
       <p class="text-on-surface-variant py-6">No reviews yet. Be the first to review this product!</p>
     @endforelse
+
+    @if($reviews->hasPages())
+      <div class="mt-8">
+        {{ $reviews->links() }}
+      </div>
+    @endif
   </section>
 </main>
 
@@ -336,6 +374,25 @@
         this.classList.add('border-2', 'border-primary');
       });
     });
+
+    const reviewImagesInput = document.getElementById('reviewImages');
+    const imagePreview = document.getElementById('imagePreview');
+    if (reviewImagesInput && imagePreview) {
+      reviewImagesInput.addEventListener('change', function () {
+        imagePreview.innerHTML = '';
+        const files = Array.from(this.files).slice(0, 5);
+        files.forEach(function (file) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative w-20 h-20';
+            wrapper.innerHTML = '<img src="' + e.target.result + '" class="w-full h-full object-cover rounded-lg border border-outline-variant">';
+            imagePreview.appendChild(wrapper);
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+    }
   });
 </script>
 

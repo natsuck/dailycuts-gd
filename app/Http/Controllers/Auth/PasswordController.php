@@ -24,6 +24,9 @@ class PasswordController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
         return back()->with('status', 'password-updated');
     }
 }

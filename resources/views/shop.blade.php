@@ -84,15 +84,20 @@
             $firstVariant = $hasVariants ? $product->variants->first() : null;
           @endphp
           <div class="bg-surface-container-lowest border border-[#EEEEEE] rounded-lg group hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col relative overflow-hidden">
-            <a href="{{ route('product_details', $product->id) }}" class="block relative aspect-square overflow-hidden bg-surface-container-high">
-              @if(!$isOutOfStock)
-                <span class="absolute top-4 left-4 z-10 bg-[#D4AF37] text-white px-3 py-1 text-label-caps font-label-caps uppercase rounded-sm">{{ $product->typeLabel() }}</span>
-              @endif
-              <button class="absolute top-4 right-4 z-10 text-on-surface-variant hover:text-[#D4AF37] active:scale-90 transition-transform bg-white/80 p-1.5 rounded-full">
-                <span class="material-symbols-outlined text-[20px]">star</span>
-              </button>
-              <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="{{ $product->product_title }}" src="{{ asset('products/'.$product->product_image) }}">
-            </a>
+            <div class="relative block aspect-square overflow-hidden bg-surface-container-high">
+              <a href="{{ route('product_details', $product->id) }}" class="block w-full h-full">
+                @if(!$isOutOfStock)
+                  <span class="absolute top-4 left-4 z-10 bg-[#D4AF37] text-white px-3 py-1 text-label-caps font-label-caps uppercase rounded-sm">{{ $product->typeLabel() }}</span>
+                @endif
+                <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" alt="{{ $product->product_title }}" src="{{ asset('products/'.$product->product_image) }}">
+              </a>
+              <form action="{{ route('wishlist.toggle', $product->id) }}" method="POST" class="absolute top-4 right-4 z-10">
+                @csrf
+                <button type="submit" class="text-on-surface-variant hover:text-[#D4AF37] active:scale-90 transition-transform bg-white/80 p-1.5 rounded-full">
+                  <span class="material-symbols-outlined text-[20px]">star</span>
+                </button>
+              </form>
+            </div>
             <div class="p-6 flex-1 flex flex-col justify-between">
               <div>
                 <p class="text-on-secondary-container font-body-md mb-1 italic">{{ $product->product_category }}</p>

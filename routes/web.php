@@ -38,7 +38,9 @@ Route::get('/dashboard', [UserController::class, 'index'])
     ->name('dashboard');
 
 Route::middleware(['auth', 'verified', 'customer'])->group(function () {
-    Route::post('/cart/{id}', [UserController::class, 'addToCart'])->name('cart.add');
+    Route::post('/cart/{id}', [UserController::class, 'addToCart'])
+        ->middleware('throttle:60,1')
+        ->name('cart.add');
     Route::get('/viewcart', [UserController::class, 'viewCart'])->name('viewcart');
     Route::delete('/cart/{id}', [UserController::class, 'removeCart'])->name('cart.remove');
     Route::patch('/cart/update/{id}', [UserController::class, 'updateCart'])->name('cart.update');
@@ -63,15 +65,21 @@ Route::middleware(['auth', 'verified', 'customer'])->group(function () {
 Route::get('/maya/webhook', fn () => response()->json(['status' => 'ok']));
 
 Route::post('/maya/webhook', [MayaWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
     ->withoutMiddleware([VerifyCsrfToken::class]);
 
 Route::post('/lalamove/webhook', [LalamoveWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
     ->withoutMiddleware([VerifyCsrfToken::class]);
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::patch('/profile', [ProfileController::class, 'update'])
+        ->middleware('throttle:10,1')
+        ->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])
+        ->middleware('throttle:5,1')
+        ->name('profile.destroy');
 });
 
 Route::middleware(['auth', 'admin'])->group(function () {
@@ -134,8 +142,10 @@ Route::middleware(['auth', 'verified', 'customer'])->group(function () {
         ->name('reviews.destroy');
 });
 
-Route::middleware(['auth', 'admin'])->group(function () {
-    Route::resource('admin/coupons', CouponController::class)->names('admin.coupons');
+    Route::middleware(['auth', 'admin'])->group(function () {
+        Route::resource('admin/coupons', CouponController::class)
+            ->names('admin.coupons')
+            ->middleware('throttle:30,1');
 
     Route::prefix('admin/inventory')->name('admin.inventory.')->group(function () {
         Route::get('/', [InventoryController::class, 'index'])->name('index');

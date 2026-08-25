@@ -116,25 +116,48 @@
       <h2 class="font-headline-sm text-headline-sm text-on-surface mb-6">Order Items</h2>
       <div class="space-y-4">
         @foreach($order->items as $item)
-          <div class="flex items-center gap-4 pb-4 {{ !$loop->last ? 'border-b border-outline-variant' : '' }}">
-            @if($item->product)
-              <div class="w-16 h-16 bg-surface-container-high rounded overflow-hidden flex-shrink-0">
-                <img class="w-full h-full object-cover" src="{{ asset('products/'.$item->product->product_image) }}" alt="{{ $item->product->product_title }}">
-              </div>
-              <div class="flex-1 min-w-0">
-                <h4 class="font-headline-sm text-headline-sm text-on-surface truncate">{{ $item->product->product_title }}</h4>
-                <p class="text-on-surface-variant text-sm font-body-md">Qty: {{ $item->quantity }} &times; &#8369;{{ number_format($item->price, 2) }}</p>
-              </div>
-            @else
-              <div class="w-16 h-16 bg-surface-container-high rounded flex items-center justify-center flex-shrink-0">
-                <span class="material-symbols-outlined text-on-surface-variant">inventory</span>
-              </div>
-              <div class="flex-1 min-w-0">
-                <h4 class="font-headline-sm text-headline-sm text-on-surface truncate">Product no longer available</h4>
-                <p class="text-on-surface-variant text-sm font-body-md">Qty: {{ $item->quantity }} &times; &#8369;{{ number_format($item->price, 2) }}</p>
+          <div class="pb-4 {{ !$loop->last ? 'border-b border-outline-variant' : '' }}">
+            <div class="flex items-center gap-4">
+              @if($item->product)
+                <div class="w-16 h-16 bg-surface-container-high rounded overflow-hidden flex-shrink-0">
+                  <img class="w-full h-full object-cover" src="{{ asset('products/'.$item->product->product_image) }}" alt="{{ $item->product->product_title }}">
+                </div>
+                <div class="flex-1 min-w-0">
+                  <a href="{{ route('product_details', $item->product->id) }}" class="font-headline-sm text-headline-sm text-on-surface truncate hover:text-primary transition-colors block">{{ $item->product->product_title }}</a>
+                  <p class="text-on-surface-variant text-sm font-body-md">Qty: {{ $item->quantity }} &times; &#8369;{{ number_format($item->price, 2) }}</p>
+                </div>
+              @else
+                <div class="w-16 h-16 bg-surface-container-high rounded flex items-center justify-center flex-shrink-0">
+                  <span class="material-symbols-outlined text-on-surface-variant">inventory</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h4 class="font-headline-sm text-headline-sm text-on-surface truncate">Product no longer available</h4>
+                  <p class="text-on-surface-variant text-sm font-body-md">Qty: {{ $item->quantity }} &times; &#8369;{{ number_format($item->price, 2) }}</p>
+                </div>
+              @endif
+              <span class="font-price-display text-price-display text-primary flex-shrink-0">&#8369;{{ number_format($item->price * $item->quantity, 2) }}</span>
+            </div>
+            @if($order->status === 'delivered' && $item->product)
+              <div class="mt-3 ml-20">
+                @if(isset($existingReviews[$item->product_id]))
+                  @php $review = $existingReviews[$item->product_id]; @endphp
+                  <div class="flex items-center gap-2">
+                    <div class="flex text-tertiary">
+                      @for($i = 1; $i <= 5; $i++)
+                        <span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' {{ $i <= $review->rating ? 1 : 0 }};">star</span>
+                      @endfor
+                    </div>
+                    <span class="text-on-surface-variant text-xs font-body-md">Reviewed</span>
+                    <a href="{{ route('product_details', $item->product->id) }}" class="text-primary text-xs font-bold hover:underline">Edit Review</a>
+                  </div>
+                @else
+                  <a href="{{ route('product_details', $item->product->id) }}#review-form" class="inline-flex items-center gap-1 text-primary text-sm font-bold hover:underline transition-colors">
+                    <span class="material-symbols-outlined text-[16px]">rate_review</span>
+                    Write a Review
+                  </a>
+                @endif
               </div>
             @endif
-            <span class="font-price-display text-price-display text-primary flex-shrink-0">&#8369;{{ number_format($item->price * $item->quantity, 2) }}</span>
           </div>
         @endforeach
       </div>

@@ -1,11 +1,13 @@
 <?php
 
+use App\Jobs\DispatchLalamoveDelivery;
 use App\Models\Cart;
 use App\Models\MayaWebhookEvent;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 
 function mayaWebhookIp(): string
 {
@@ -131,6 +133,7 @@ function mayaOrderWithReservedStock(int $stock = 5): array
 }
 
 beforeEach(function () {
+    Queue::fake();
     config(['maya.webhook_ips' => [mayaWebhookIp()]]);
 });
 
@@ -190,6 +193,7 @@ test('PAYMENT_SUCCESS marks the order paid and clears the cart', function () {
     expect($order->payment_intent_id)->toBe('e732f996-cb87-4120-b712-166d8183c01d');
     expect($order->payment_method)->toBe('card');
     expect(Cart::where('user_id', $user->id)->count())->toBe(0);
+    Queue::assertPushed(DispatchLalamoveDelivery::class, fn (DispatchLalamoveDelivery $job) => $job->orderId === $order->id);
 });
 
 test('PAYMENT_SUCCESS maps a maya-wallet fund source to the maya method', function () {

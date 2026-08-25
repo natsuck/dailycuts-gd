@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\VerificationCodeMail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class EmailVerificationNotificationController extends Controller
 {
@@ -17,8 +19,11 @@ class EmailVerificationNotificationController extends Controller
             return redirect()->intended(route('index', absolute: false));
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        $user = $request->user();
+        $code = $user->generateVerificationCode();
 
-        return back()->with('status', 'verification-link-sent');
+        Mail::to($user->email)->send(new VerificationCodeMail($user, $code));
+
+        return back()->with('status', 'verification-code-sent');
     }
 }

@@ -11,7 +11,7 @@ test('guests are redirected to login before admin routes', function () {
 test('regular users cannot access admin routes', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/view_orders')->assertStatus(401);
+    $this->actingAs($user)->get('/view_orders')->assertStatus(403);
 });
 
 test('admins can access admin routes', function () {

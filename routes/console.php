@@ -7,4 +7,6 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Schedule::command('orders:reconcile-maya')->everyFiveMinutes();
 Schedule::command('orders:expire-unpaid')->hourly();
+Schedule::command('orders:retry-lalamove-dispatch')->everyFifteenMinutes();

@@ -143,9 +143,48 @@ crontab -e
 * * * * * cd /var/www/thedailycuts.com && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-This runs the `orders:expire-unpaid` command hourly.
+This runs the scheduled maintenance commands:
 
-## 7. DNS Records
+| Command | Frequency | Purpose |
+|---|---|---|
+| `orders:reconcile-maya` | every 5 min | Re-asks Maya about pending unpaid orders so a lost `PAYMENT_SUCCESS` webhook still marks the order paid |
+| `orders:expire-unpaid` | hourly | Cancels stale unpaid orders and releases reserved stock (re-checks Maya before cancelling) |
+| `orders:retry-lalamove-dispatch` | every 15 min | Creates missing Lalamove deliveries for paid orders (safety net if the queue worker was down) |
+
+## 7. Queue Worker
+
+Laravel queues power the post-payment Lalamove delivery creation
+(`QUEUE_CONNECTION=database`). Run a supervised worker:
+
+```bash
+apt install -y supervisor
+
+cat > /etc/supervisor/conf.d/thedailycuts-worker.conf <<'EOF'
+[program:thedailycuts-worker]
+command=php /var/www/thedailycuts.com/artisan queue:work database --tries=3 --max-time=3600
+numprocs=1
+autostart=true
+autorestart=true
+user=www-data
+stopwaitsecs=3600
+EOF
+
+supervisorctl reread && supervisorctl update && supervisorctl start thedailycuts-worker
+```
+
+If the worker is down, payments are unaffected — the scheduler's
+`orders:retry-lalamove-dispatch` creates any missed deliveries within 15 minutes.
+
+## 8. Trusted Proxies
+
+The Maya webhook IP allowlist compares `$request->ip()` against Maya's webhook
+IPs. The app trusts loopback proxies by default (`TRUSTED_PROXIES` unset),
+matching the nginx + PHP-FPM setup in section 4. If you later put an external
+load balancer or CDN (Cloudflare, AWS ALB, ...) in front of the app, set
+`TRUSTED_PROXIES` to its IPs/CIDR ranges — otherwise **every legitimate Maya
+webhook will be rejected** with HTTP 400.
+
+## 9. DNS Records
 
 At your domain registrar, create:
 
@@ -154,7 +193,7 @@ At your domain registrar, create:
 | A | @ | `<VPS_IP>` |
 | A | www | `<VPS_IP>` |
 
-## 8. Post-Launch Verification
+## 10. Post-Launch Verification
 
 - [ ] `https://thedailycuts.com` loads the storefront
 - [ ] `https://thedailycuts.com/up` returns `OK`
@@ -162,6 +201,7 @@ At your domain registrar, create:
 - [ ] Product browsing and cart work
 - [ ] Checkout with Maya sandbox keys
 - [ ] Swap to Maya production keys and test real payment
+- [ ] Queue worker running: `supervisorctl status thedailycuts-worker`
+- [ ] Scheduler commands fire: `php artisan schedule:list`
 - [ ] Email delivery (order confirmation) works
 - [ ] `storage/` and `bootstrap/cache/` are writable
-- [ ] Cron job fires: `php artisan schedule:run` manually test

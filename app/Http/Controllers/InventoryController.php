@@ -14,8 +14,8 @@ class InventoryController extends Controller
         $query = Product::query();
 
         if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where('product_title', 'like', "%{$search}%");
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $request->input('search'));
+            $query->where('product_title', 'like', "%{$escaped}%");
         }
 
         $products = $query->select('id', 'product_title', 'product_quantity', 'reorder_level', 'expiry_date')

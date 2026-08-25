@@ -173,7 +173,14 @@ class AdminController extends Controller
     {
         $validated = $this->validateProduct($request);
         $product = new Product;
-        $product->fill($validated);
+        $product->product_title = $validated['product_title'];
+        $product->product_description = $validated['product_description'];
+        $product->product_category = $validated['product_category'];
+        $product->product_type = $validated['product_type'] ?? null;
+        $product->product_quantity = $validated['product_quantity'] ?? 0;
+        $product->reorder_level = $validated['reorder_level'] ?? null;
+        $product->expiry_date = $validated['expiry_date'] ?? null;
+        $product->product_price = $validated['product_price'] ?? 0;
 
         if ($request->hasFile('product_image')) {
             $product->product_image = $this->storeProductImage($request);
@@ -222,7 +229,14 @@ class AdminController extends Controller
     {
         $validated = $this->validateProduct($request, true);
         $product = Product::findOrFail($id);
-        $product->fill($validated);
+        $product->product_title = $validated['product_title'];
+        $product->product_description = $validated['product_description'];
+        $product->product_category = $validated['product_category'];
+        $product->product_type = $validated['product_type'] ?? $product->product_type;
+        $product->product_quantity = $validated['product_quantity'] ?? $product->product_quantity;
+        $product->reorder_level = $validated['reorder_level'] ?? $product->reorder_level;
+        $product->expiry_date = $validated['expiry_date'] ?? $product->expiry_date;
+        $product->product_price = $validated['product_price'] ?? $product->product_price;
 
         if ($request->hasFile('product_image')) {
             $oldImagePath = public_path('products/'.$product->product_image);
@@ -250,11 +264,12 @@ class AdminController extends Controller
         ]);
         $search = $validated['search'] ?? '';
 
+        $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $search);
         $products = Product::query()
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where('product_title', 'LIKE', '%'.$search.'%')
-                    ->orWhere('product_description', 'LIKE', '%'.$search.'%')
-                    ->orWhere('product_category', 'LIKE', '%'.$search.'%');
+            ->when($search !== '', function ($query) use ($escaped) {
+                $query->where('product_title', 'LIKE', '%'.$escaped.'%')
+                    ->orWhere('product_description', 'LIKE', '%'.$escaped.'%')
+                    ->orWhere('product_category', 'LIKE', '%'.$escaped.'%');
             })
             ->orderBy('created_at', 'desc')
             ->paginate(5)

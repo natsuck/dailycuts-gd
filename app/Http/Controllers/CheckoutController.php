@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\DispatchLalamoveDelivery;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\CouponUsage;
@@ -11,8 +12,7 @@ use App\Models\SavedAddress;
 use App\Services\AddressNormalizer;
 use App\Services\GeocodingService;
 use App\Services\InventoryService;
-use App\Services\LalamoveDeliveryService;
-use App\Services\MayaPaymentConfirmationService;
+use App\Services\MayaReconciliationService;
 use App\Services\OrderPricingService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -304,32 +304,32 @@ class CheckoutController extends Controller
 
         try {
             $order = DB::transaction(function () use ($validated, $fullAddress, $coords, $totals, $cart, $inventory, $coupon, $quote, $warehouse, $deliveryAddress, $deliveryPlaceId, $idempotencyKey) {
-                $order = Order::create([
-                    'user_id' => Auth::id(),
-                    'idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey : null,
-                    'name' => $validated['first_name'].' '.$validated['last_name'],
-                    'address' => $fullAddress,
-                    'barangay' => $validated['barangay'],
-                    'region' => $validated['region'],
-                    'city' => $validated['city'],
-                    'phone' => $validated['phone'],
-                    'total' => $totals['grandTotal'],
-                    'status' => 'pending',
-                    'payment_status' => 'unpaid',
-                    'shipping_fee' => $totals['shippingFee'],
-                    'discount' => $totals['discount'],
-                    'coupon_code' => $coupon?->code,
-                    'notes' => $validated['notes'],
-                    'quotation_id' => $quote['quotationId'] ?? null,
-                    'pickup_stop_id' => data_get($quote, 'stops.0.stopId'),
-                    'delivery_stop_id' => data_get($quote, 'stops.1.stopId'),
-                    'delivery_status' => $quote ? 'pending' : 'quotation_failed',
-                    'pickup_address' => $warehouse['address'] ?? null,
-                    'pickup_lat' => $warehouse['lat'] ?? null,
-                    'pickup_lng' => $warehouse['lng'] ?? null,
-                    'delivery_lat' => $coords['lat'] ?? null,
-                    'delivery_lng' => $coords['lng'] ?? null,
-                ]);
+                $order = new Order();
+                $order->user_id = Auth::id();
+                $order->idempotency_key = $idempotencyKey !== '' ? $idempotencyKey : null;
+                $order->name = $validated['first_name'].' '.$validated['last_name'];
+                $order->address = $fullAddress;
+                $order->barangay = $validated['barangay'];
+                $order->region = $validated['region'];
+                $order->city = $validated['city'];
+                $order->phone = $validated['phone'];
+                $order->total = $totals['grandTotal'];
+                $order->status = 'pending';
+                $order->payment_status = 'unpaid';
+                $order->shipping_fee = $totals['shippingFee'];
+                $order->discount = $totals['discount'];
+                $order->coupon_code = $coupon?->code;
+                $order->notes = $validated['notes'];
+                $order->quotation_id = $quote['quotationId'] ?? null;
+                $order->pickup_stop_id = data_get($quote, 'stops.0.stopId');
+                $order->delivery_stop_id = data_get($quote, 'stops.1.stopId');
+                $order->delivery_status = $quote ? 'pending' : 'quotation_failed';
+                $order->pickup_address = $warehouse['address'] ?? null;
+                $order->pickup_lat = $warehouse['lat'] ?? null;
+                $order->pickup_lng = $warehouse['lng'] ?? null;
+                $order->delivery_lat = $coords['lat'] ?? null;
+                $order->delivery_lng = $coords['lng'] ?? null;
+                $order->save();
 
                 // Save the selected Google Places address to the customer's address book.
                 if ($deliveryPlaceId) {
@@ -500,6 +500,7 @@ class CheckoutController extends Controller
                 ]);
 
                 DB::transaction(function () use ($order, $inventory) {
+                    $this->releaseCouponForOrder($order);
                     $inventory->release($order);
                     OrderItem::where('order_id', $order->id)->delete();
                     $order->delete();
@@ -512,11 +513,10 @@ class CheckoutController extends Controller
                 ]);
             }
 
-            $order->update([
-                'checkout_session_id' => $session['checkoutId'],
-                'checkout_session_url' => $session['redirectUrl'],
-                'payment_request_reference' => $requestReference,
-            ]);
+            $order->checkout_session_id = $session['checkoutId'];
+            $order->checkout_session_url = $session['redirectUrl'];
+            $order->payment_request_reference = $requestReference;
+            $order->save();
 
             if ($coupon) {
                 DB::transaction(function () use ($coupon, $order, $totals) {
@@ -548,6 +548,7 @@ class CheckoutController extends Controller
             ]);
 
             DB::transaction(function () use ($order, $inventory) {
+                $this->releaseCouponForOrder($order);
                 $inventory->release($order);
                 OrderItem::where('order_id', $order->id)->delete();
                 $order->delete();
@@ -570,7 +571,10 @@ class CheckoutController extends Controller
             // before it is delivered. Reconcile against Maya so the customer
             // is not told payment was received when it has not been yet.
             if ($order->payment_status !== 'paid' && $order->checkout_session_id) {
-                $this->reconcilePayment($order);
+                if (app(MayaReconciliationService::class)->reconcile($order) === MayaReconciliationService::CONFIRMED) {
+                    DispatchLalamoveDelivery::dispatch($order->id);
+                }
+
                 $order->refresh();
             }
 
@@ -603,65 +607,25 @@ class CheckoutController extends Controller
     }
 
     /**
-     * Reconciles an unpaid order against Maya's Get Checkout API. The webhook
-     * remains authoritative; this only closes the gap between the browser
-     * redirect and webhook delivery. Failures (e.g. a misconfigured secret
-     * key) are logged and left to the webhook.
+     * Reconciliation against Maya's Get Checkout API lives in
+     * MayaReconciliationService so the checkout success page, the scheduled
+     * reconciler, and the expiry command all share identical logic.
      */
-    protected function reconcilePayment(Order $order): void
-    {
-        try {
-            $response = Http::timeout(30)
-                ->withHeaders([
-                    'Authorization' => 'Basic '.base64_encode((string) config('maya.secret_key').':'),
-                    'Accept' => 'application/json',
-                ])
-                ->get(config('maya.base_url').'/checkout/v1/checkouts/'.$order->checkout_session_id);
-
-            if (! $response->successful()) {
-                Log::warning('Maya Get Checkout reconciliation failed', [
-                    'order_id' => $order->id,
-                    'status' => $response->status(),
-                    'response' => $response->json(),
-                ]);
-
-                return;
-            }
-
-            $payload = $response->json();
-
-            if (! is_array($payload)) {
-                return;
-            }
-
-            $confirmedOrderId = app(MayaPaymentConfirmationService::class)->confirm($order, $payload);
-
-            if ($confirmedOrderId) {
-                $this->dispatchLalamove($confirmedOrderId);
-            }
-        } catch (\Exception $e) {
-            Log::error('Maya Get Checkout reconciliation exception', [
-                'order_id' => $order->id,
-                'message' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    protected function dispatchLalamove(int $orderId): void
-    {
-        try {
-            app(LalamoveDeliveryService::class)->dispatch(Order::findOrFail($orderId));
-        } catch (\Exception $e) {
-            Log::error('Lalamove dispatch exception', [
-                'order_id' => $orderId,
-                'message' => $e->getMessage(),
-            ]);
-        }
-    }
-
     protected function phoneForMaya(string $phone): string
     {
         return '+63'.substr(preg_replace('/[^0-9]/', '', $phone), -10);
+    }
+
+    protected function releaseCouponForOrder(Order $order): void
+    {
+        $usage = CouponUsage::where('order_id', $order->id)->first();
+
+        if (! $usage) {
+            return;
+        }
+
+        Coupon::whereKey($usage->coupon_id)->decrement('used_count');
+        $usage->delete();
     }
 
     protected function couponFromSession(): ?Coupon

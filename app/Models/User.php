@@ -17,23 +17,53 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
-        'email_verified_at',
-        'user_type',
-        'oauth_provider',
-        'oauth_id',
+        'verification_code',
+        'verification_code_expires_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'verification_code',
     ];
 
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
+            'verification_code_expires_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function generateVerificationCode(): string
+    {
+        $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        $this->update([
+            'verification_code' => $code,
+            'verification_code_expires_at' => now()->addMinutes(10),
+        ]);
+
+        return $code;
+    }
+
+    public function verifyCode(string $code): bool
+    {
+        if (
+            $this->verification_code === $code &&
+            $this->verification_code_expires_at &&
+            $this->verification_code_expires_at->isFuture()
+        ) {
+            $this->update([
+                'verification_code' => null,
+                'verification_code_expires_at' => null,
+            ]);
+
+            return true;
+        }
+
+        return false;
     }
 
     public function orders()

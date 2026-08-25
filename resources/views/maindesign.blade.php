@@ -322,10 +322,9 @@
     </div>
   @endif
 
-  <script src="{{ asset('frontend/js/jquery-3.7.1.min.js') }}"></script>
-  <script src="{{ asset('frontend/js/bootstrap.js') }}"></script>
-  <script src="{{ asset('frontend/js/custom.js') }}"></script>
   <script>
+    var _y = new Date().getFullYear(); var _el = document.getElementById('displayYear'); if (_el) _el.textContent = _y;
+
     window.showSnackbar = function (message, type) {
       var snackbar = document.getElementById("cartSnackbar");
       if (!snackbar) return;

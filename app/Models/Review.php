@@ -15,10 +15,12 @@ class Review extends Model
         'rating',
         'title',
         'body',
+        'images',
     ];
 
     protected $casts = [
         'rating' => 'integer',
+        'images' => 'array',
     ];
 
     public function user()

@@ -182,16 +182,19 @@ class UserController extends Controller
 
     public function productDetails($id, ProductPairingService $pairings)
     {
-        $product = Product::with(['reviews.user', 'wishlistedBy' => function ($q) {
+        $product = Product::with(['wishlistedBy' => function ($q) {
             $q->where('user_id', Auth::id());
         }])->findOrFail($id);
+
+        $reviews = $product->reviews()->with('user')->latest()->paginate(10);
+
         $related_products = Product::where('id', '!=', $id)
             ->latest()
             ->take(4)
             ->get();
         $pairingProducts = $pairings->forProduct($product);
 
-        return view('product_details', compact('product', 'related_products', 'pairingProducts'));
+        return view('product_details', compact('product', 'related_products', 'pairingProducts', 'reviews'));
     }
 
     public function shop(Request $request)
@@ -200,9 +203,10 @@ class UserController extends Controller
 
         $search = $request->input('search');
         if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('product_title', 'LIKE', "%{$search}%")
-                    ->orWhere('product_description', 'LIKE', "%{$search}%");
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $search);
+            $query->where(function ($q) use ($escaped) {
+                $q->where('product_title', 'LIKE', "%{$escaped}%")
+                    ->orWhere('product_description', 'LIKE', "%{$escaped}%");
             });
         }
 
@@ -218,8 +222,9 @@ class UserController extends Controller
                 ->toArray();
 
             if (! empty($bestSellerIds)) {
+                $placeholders = implode(',', array_fill(0, count($bestSellerIds), '?'));
                 $query->whereIn('products.id', $bestSellerIds)
-                    ->orderByRaw('FIELD(products.id, '.implode(',', $bestSellerIds).')');
+                    ->orderByRaw("FIELD(products.id, $placeholders)", $bestSellerIds);
             }
         } elseif ($category) {
             $query->where(function ($q) use ($category) {
@@ -251,7 +256,7 @@ class UserController extends Controller
     {
         $product = Product::findOrFail($id);
         $validated = $request->validate([
-            'quantity' => ['nullable', 'integer', 'min:1'],
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:9999'],
             'variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
         ]);
         $quantityToAdd = (int) ($validated['quantity'] ?? 1);
@@ -335,7 +340,7 @@ class UserController extends Controller
     public function updateCart(Request $request, $id, OrderPricingService $pricing)
     {
         $validated = $request->validate([
-            'quantity' => ['required', 'integer', 'min:1'],
+            'quantity' => ['required', 'integer', 'min:1', 'max:9999'],
         ]);
 
         return DB::transaction(function () use ($id, $validated, $pricing) {

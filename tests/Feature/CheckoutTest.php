@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\DispatchLalamoveDelivery;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\CouponUsage;
@@ -12,6 +13,7 @@ use App\Models\User;
 use App\Services\GeocodingService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 
 function validCheckoutPayload(): array
 {
@@ -807,6 +809,8 @@ test('the Maya checkout request sends numeric amounts and accepts JSON', functio
 });
 
 test('checkout success reconciles an unpaid order and marks it paid', function () {
+    Queue::fake();
+
     $user = User::factory()->create();
     $product = Product::factory()->create(['product_quantity' => 5]);
     $order = Order::factory()->create([
@@ -846,6 +850,7 @@ test('checkout success reconciles an unpaid order and marks it paid', function (
     expect($order->payment_method)->toBe('card');
     expect($order->payment_intent_id)->toBe('cs_recon_1');
     expect(Cart::where('user_id', $user->id)->count())->toBe(0);
+    Queue::assertPushed(DispatchLalamoveDelivery::class, fn (DispatchLalamoveDelivery $job) => $job->orderId === $order->id);
 });
 
 test('the order placed snackbar renders on the order confirmation page', function () {

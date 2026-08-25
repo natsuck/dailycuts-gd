@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Webhook;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\DispatchLalamoveDelivery;
+use App\Models\Coupon;
+use App\Models\CouponUsage;
 use App\Models\MayaWebhookEvent;
 use App\Models\Order;
 use App\Services\InventoryService;
-use App\Services\LalamoveDeliveryService;
 use App\Services\MayaPaymentConfirmationService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -110,6 +112,13 @@ class MayaWebhookController extends Controller
             }
 
             $inventory->release($lockedOrder);
+
+            $usage = CouponUsage::where('order_id', $lockedOrder->id)->first();
+            if ($usage) {
+                Coupon::whereKey($usage->coupon_id)->decrement('used_count');
+                $usage->delete();
+            }
+
             $lockedOrder->payment_status = 'failed';
             $lockedOrder->status = 'cancelled';
             $lockedOrder->save();
@@ -124,14 +133,7 @@ class MayaWebhookController extends Controller
 
     protected function dispatchLalamove(int $orderId): void
     {
-        try {
-            app(LalamoveDeliveryService::class)->dispatch(Order::findOrFail($orderId));
-        } catch (\Exception $e) {
-            Log::error('Lalamove dispatch exception', [
-                'order_id' => $orderId,
-                'message' => $e->getMessage(),
-            ]);
-        }
+        DispatchLalamoveDelivery::dispatch($orderId);
     }
 
     protected function hasAllowedIp(Request $request): bool
