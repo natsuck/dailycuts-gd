@@ -12,7 +12,7 @@ use Laravel\Socialite\Two\InvalidStateException;
 
 class SocialLoginController extends Controller
 {
-    private const PROVIDERS = ['google', 'facebook'];
+    private const PROVIDERS = ['google'];
 
     /**
      * Redirect the user to the provider's authentication page.
