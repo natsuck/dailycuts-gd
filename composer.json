@@ -12,8 +12,7 @@
     "php": "^8.2",
     "doctrine/dbal": "^4.4",
     "laravel/framework": "^12.0",
-    "laravel/socialite": "^5.29",
-    "laravel/tinker": "^2.10.1"
+    "laravel/socialite": "^5.29"
   },
   "require-dev": {
     "fakerphp/faker": "^1.23",
@@ -21,6 +20,7 @@
     "laravel/pail": "^1.2.2",
     "laravel/pint": "^1.24",
     "laravel/sail": "^1.41",
+    "laravel/tinker": "^2.10.1",
     "mockery/mockery": "^1.6",
     "nunomaduro/collision": "^8.6",
     "pestphp/pest": "^4.4",

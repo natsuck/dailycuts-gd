@@ -132,10 +132,9 @@
       <div class="bg-white border border-outline-variant p-8">
         <h3 class="font-headline-md text-headline-md mb-6 uppercase tracking-widest border-b-4 border-on-surface pb-2">Freshness Notes</h3>
         <div class="space-y-3 font-body-md">
-          <p class="border-b border-outline-variant pb-1 flex justify-between"><span>Storage</span> <span class="font-bold">Keep chilled</span></p>
-          <p class="border-b border-outline-variant pb-1 flex justify-between"><span>Prep</span> <span class="font-bold">Cook thoroughly</span></p>
-          <p class="border-b border-outline-variant pb-1 flex justify-between"><span>Delivery</span> <span class="font-bold">Temperature-controlled</span></p>
-          <p class="border-b border-outline-variant pb-1 flex justify-between"><span>Best For</span> <span class="font-bold">Daily meals</span></p>
+          @foreach($product->freshnessNotes() as $noteKey => $noteValue)
+            <p class="border-b border-outline-variant pb-1 flex justify-between"><span>{{ $noteKey }}</span> <span class="font-bold">{{ $noteValue }}</span></p>
+          @endforeach
         </div>
       </div>
     </div>

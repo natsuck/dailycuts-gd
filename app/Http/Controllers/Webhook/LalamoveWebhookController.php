@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Webhook;
 
 use App\Http\Controllers\Controller;
+use App\Mail\OrderDeliveredMail;
+use App\Mail\OrderShippedMail;
 use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class LalamoveWebhookController extends Controller
 {
@@ -70,6 +73,10 @@ class LalamoveWebhookController extends Controller
 
             $locked->last_lalamove_webhook_at = $incoming;
 
+            $wasDelivered = $locked->status === 'delivered';
+            $wasDriverAssigned = $locked->lalamove_driver_name !== null;
+            $status = $data['status'] ?? null;
+
             if ($eventName === 'DRIVER_ASSIGNED') {
                 $driver = $data['driver'] ?? [];
 
@@ -78,8 +85,6 @@ class LalamoveWebhookController extends Controller
                     $locked->lalamove_driver_phone = $driver['phone'] ?? $locked->lalamove_driver_phone;
                 }
             }
-
-            $status = $data['status'] ?? null;
 
             if ($status) {
                 $locked->lalamove_status = $status;
@@ -101,13 +106,41 @@ class LalamoveWebhookController extends Controller
 
             $locked->save();
 
+            $nowDelivered = $locked->status === 'delivered' && ! $wasDelivered;
+            $nowShipped = $eventName === 'DRIVER_ASSIGNED' && ! $wasDriverAssigned && ! $nowDelivered;
+
+            if ($nowShipped) {
+                $this->notifyOrder($locked, OrderShippedMail::class);
+            }
+
+            if ($nowDelivered) {
+                $this->notifyOrder($locked, OrderDeliveredMail::class);
+            }
+
             Log::info('Lalamove order status updated.', [
                 'order_id' => $locked->id,
                 'lalamove_order_id' => $locked->lalamove_order_id,
                 'lalamove_status' => $status,
                 'order_status' => $locked->status,
+                'now_shipped' => $nowShipped,
+                'now_delivered' => $nowDelivered,
             ]);
         });
+    }
+
+    /**
+     * Queue a customer-facing order email, guarded so orders without a linked
+     * user never break the webhook.
+     */
+    protected function notifyOrder(Order $order, string $mailableClass): void
+    {
+        $user = $order->user;
+
+        if (! $user || ! $user->email) {
+            return;
+        }
+
+        Mail::to($user->email)->queue(new $mailableClass($order));
     }
 
     protected function verifyPayload(Request $request, string $payloadRaw, array $payload): void

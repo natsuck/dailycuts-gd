@@ -10,29 +10,32 @@ use Illuminate\Support\Facades\Http;
 
 function fakeLalamoveOrderFlowForJob(): void
 {
-    Http::fake([
-        'rest.sandbox.lalamove.com/*' => function (Request $request) {
-            if (str_ends_with($request->url(), '/v3/quotations')) {
-                return Http::response([
-                    'data' => [
-                        'quotationId' => 'quotation_test_1',
-                        'stops' => [
-                            ['stopId' => 'stop_pickup_1'],
-                            ['stopId' => 'stop_dropoff_1'],
-                        ],
-                        'priceBreakdown' => ['total' => 150],
-                    ],
-                ], 201);
-            }
-
+    $handler = function (Request $request) {
+        if (str_ends_with($request->url(), '/v3/quotations')) {
             return Http::response([
                 'data' => [
-                    'orderId' => 'order_test_1',
-                    'status' => 'ASSIGNING_DRIVER',
-                    'shareLink' => 'https://track.lalamove.test/order_test_1',
+                    'quotationId' => 'quotation_test_1',
+                    'stops' => [
+                        ['stopId' => 'stop_pickup_1'],
+                        ['stopId' => 'stop_dropoff_1'],
+                    ],
+                    'priceBreakdown' => ['total' => 150],
                 ],
             ], 201);
-        },
+        }
+
+        return Http::response([
+            'data' => [
+                'orderId' => 'order_test_1',
+                'status' => 'ASSIGNING_DRIVER',
+                'shareLink' => 'https://track.lalamove.test/order_test_1',
+            ],
+        ], 201);
+    };
+
+    Http::fake([
+        'rest.lalamove.com/*' => $handler,
+        'rest.sandbox.lalamove.com/*' => $handler,
     ]);
 }
 
@@ -97,6 +100,9 @@ test('the job does nothing when a delivery already exists', function () {
 
 test('the job fails so it is retried when Lalamove rejects the dispatch', function () {
     Http::fake([
+        'rest.lalamove.com/*' => Http::response([
+            'errors' => [['id' => 'ERR_INVALID_FIELD', 'message' => 'quotation expired']],
+        ], 422),
         'rest.sandbox.lalamove.com/*' => Http::response([
             'errors' => [['id' => 'ERR_INVALID_FIELD', 'message' => 'quotation expired']],
         ], 422),

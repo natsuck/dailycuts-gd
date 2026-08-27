@@ -14,12 +14,12 @@
 
       <section>
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">1. Acceptance of Terms</h2>
-        <p class="text-on-surface-variant">By accessing and using the The Daily Cuts by GD website (&ldquo;Website&rdquo;) and its services, you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use our Website or place any orders.</p>
+        <p class="text-on-surface-variant">By accessing and using the The Daily Cuts website (&ldquo;Website&rdquo;) and its services, you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use our Website or place any orders.</p>
       </section>
 
       <section>
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">2. Products and Services</h2>
-        <p class="text-on-surface-variant mb-3">The Daily Cuts by GD is a fresh meat ecommerce store specializing in premium cuts of beef, pork, and chicken. All products are sourced from trusted local suppliers.</p>
+        <p class="text-on-surface-variant mb-3">The Daily Cuts is a fresh meat ecommerce store specializing in premium cuts of beef, pork, and chicken. All products are sourced from trusted local suppliers.</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
           <li><strong>Freshness Guarantee:</strong> All meat products are freshly cut and temperature-controlled during storage and delivery.</li>
           <li><strong>Product Images:</strong> Product images on the Website are for illustration purposes. Actual products may vary slightly in appearance.</li>
@@ -74,12 +74,12 @@
 
       <section>
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">7. Intellectual Property</h2>
-        <p class="text-on-surface-variant">All content on this Website, including but not limited to text, graphics, logos, images, product descriptions, and software, is the property of The Daily Cuts by GD and is protected by Philippine and international intellectual property laws. You may not reproduce, distribute, or create derivative works without our express written permission.</p>
+        <p class="text-on-surface-variant">All content on this Website, including but not limited to text, graphics, logos, images, product descriptions, and software, is the property of The Daily Cuts and is protected by Philippine and international intellectual property laws. You may not reproduce, distribute, or create derivative works without our express written permission.</p>
       </section>
 
       <section>
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">8. Limitation of Liability</h2>
-        <p class="text-on-surface-variant">To the maximum extent permitted by Philippine law, The Daily Cuts by GD shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of or related to your use of our Website or purchase of our products. Our total liability shall not exceed the total amount paid by you for the specific order giving rise to the claim.</p>
+        <p class="text-on-surface-variant">To the maximum extent permitted by Philippine law, The Daily Cuts shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of or related to your use of our Website or purchase of our products. Our total liability shall not exceed the total amount paid by you for the specific order giving rise to the claim.</p>
       </section>
 
       <section>
@@ -111,7 +111,7 @@
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">13. Contact Us</h2>
         <p class="text-on-surface-variant">For any questions or concerns regarding these Terms and Conditions, please contact us:</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
-          <li>Email: <a href="mailto:nathanielquirino3210@gmail.com" class="text-primary hover:underline">nathanielquirino3210@gmail.com</a></li>
+          <li>Email: <a href="mailto:tdc@thedailycuts.com" class="text-primary hover:underline">tdc@thedailycuts.com</a></li>
           <li>Phone: <a href="tel:+631234567891" class="text-primary hover:underline">+63 1234567891</a></li>
           <li>Address: {{ $storeLocation?->fullAddress() ?? 'Phase 10, Wellington Place' }}</li>
         </ul>

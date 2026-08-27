@@ -108,11 +108,11 @@
 
       <section>
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">3. Business Registration</h2>
-        <p class="text-on-surface-variant">The Daily Cuts by GD is a registered business operating in the Philippines. Registration details available upon request.</p>
+        <p class="text-on-surface-variant">The Daily Cuts is a registered business operating in the Philippines. Registration details available upon request.</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
-          <li><strong>Business Name:</strong> The Daily Cuts by GD</li>
+          <li><strong>Business Name:</strong> The Daily Cuts</li>
           <li><strong>Address:</strong> {{ $storeLocation?->fullAddress() ?? 'Phase 10, Wellington Place' }}</li>
-          <li><strong>Email:</strong> <a href="mailto:nathanielquirino3210@gmail.com" class="text-primary hover:underline">nathanielquirino3210@gmail.com</a></li>
+          <li><strong>Email:</strong> <a href="mailto:tdc@thedailycuts.com" class="text-primary hover:underline">tdc@thedailycuts.com</a></li>
           <li><strong>Phone:</strong> <a href="tel:+631234567891" class="text-primary hover:underline">+63 1234567891</a></li>
           <li><strong>DTI/SEC Registration Number:</strong> <em>To be added</em></li>
           <li><strong>BIR TIN:</strong> <em>To be added</em></li>

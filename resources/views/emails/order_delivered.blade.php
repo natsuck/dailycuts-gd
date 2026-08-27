@@ -63,4 +63,4 @@
 
 <p>We hope you enjoy your fresh meat!</p>
 
-<p>Thank you for choosing <strong style="color:#D2042D;">The Daily Cuts by GD</strong></p>
+<p>Thank you for choosing <strong style="color:#D2042D;">The Daily Cuts</strong></p>

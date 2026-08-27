@@ -14,7 +14,7 @@
 
       <section>
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">1. Introduction</h2>
-        <p class="text-on-surface-variant">Welcome to The Daily Cuts by GD (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;). We operate the website thedailycuts.com and are committed to protecting your personal information and your right to privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and purchase our fresh meat products.</p>
+        <p class="text-on-surface-variant">Welcome to The Daily Cuts (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;). We operate the website thedailycuts.com and are committed to protecting your personal information and your right to privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and purchase our fresh meat products.</p>
       </section>
 
       <section>
@@ -96,9 +96,9 @@
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">11. Contact Us</h2>
         <p class="text-on-surface-variant">If you have any questions about this Privacy Policy or wish to exercise your data rights, please contact us:</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
-          <li>Email: <a href="mailto:nathanielquirino3210@gmail.com" class="text-primary hover:underline">nathanielquirino3210@gmail.com</a></li>
+          <li>Email: <a href="mailto:tdc@thedailycuts.com" class="text-primary hover:underline">tdc@thedailycuts.com</a></li>
           <li>Phone: <a href="tel:+631234567891" class="text-primary hover:underline">+63 1234567891</a></li>
-          <li>Address: {{ $storeLocation?->fullAddress() ?? 'Phase 10, Wellington Place' }}</li>
+          <li>Address: {{ $storeLocation?->fullAddress() ?? '161 Vallhala Extension, Pasay City, Metro Manila' }}</li>
         </ul>
       </section>
 

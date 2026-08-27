@@ -87,7 +87,7 @@ class LalamoveService
                 'sender' => $sender,
                 'recipients' => $recipients,
                 'isPODEnabled' => true,
-                'partner' => config('shop.store.name', 'The Daily Cuts by GD'),
+                'partner' => config('shop.store.name', 'The Daily Cuts'),
             ],
         ];
 
@@ -136,6 +136,14 @@ class LalamoveService
             $start = microtime(true);
 
             try {
+                Log::debug('Lalamove API request', [
+                    'method' => $method,
+                    'path' => $path,
+                    'url' => $this->baseUrl.$path,
+                    'body' => $body,
+                    'attempt' => $attempt,
+                ]);
+
                 $request = Http::timeout(15)->withHeaders([
                     'Authorization' => "hmac {$this->apiKey}:{$timestamp}:{$signature}",
                     'Content-Type' => 'application/json; charset=utf-8',

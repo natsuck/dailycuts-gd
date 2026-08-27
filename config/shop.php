@@ -8,31 +8,37 @@ return [
         'lalamove_item_weight' => env('LALAMOVE_ITEM_WEIGHT', 'LESS_THAN_20_KG'),
         'lalamove_item_categories' => env('LALAMOVE_ITEM_CATEGORIES') ? explode(',', env('LALAMOVE_ITEM_CATEGORIES')) : ['FOOD_AND_BEVERAGES'],
         'lalamove_item_handling' => env('LALAMOVE_ITEM_HANDLING') ? explode(',', env('LALAMOVE_ITEM_HANDLING')) : ['KEEP_DRY'],
+        'fallback_tiers' => [
+            ['max_km' => 5, 'fee' => 100],
+            ['max_km' => 15, 'fee' => 150],
+            ['max_km' => 30, 'fee' => 200],
+            ['max_km' => PHP_FLOAT_MAX, 'fee' => 250],
+        ],
     ],
 
     'store' => [
-        'name' => env('SHOP_NAME', 'The Daily Cuts by GD'),
+        'name' => env('SHOP_NAME', 'The Daily Cuts'),
         'branch_phone' => env('SHOP_BRANCH_PHONE', '+639000000000'),
         // Fixed warehouse/pickup location used as the origin for every delivery.
         'warehouse' => [
-            'name' => env('SHOP_WAREHOUSE_NAME', 'The Daily Cuts by GD'),
+            'name' => env('SHOP_WAREHOUSE_NAME', 'The Daily Cuts'),
             'phone' => env('SHOP_WAREHOUSE_PHONE', '+639000000000'),
             'address' => env('SHOP_WAREHOUSE_ADDRESS', '161 Vallhalla Extension, Pasay City, Philippines'),
-            'lat' => (float) env('SHOP_WAREHOUSE_LAT', 14.5378),
-            'lng' => (float) env('SHOP_WAREHOUSE_LNG', 121.0022),
+            'lat' => (float) env('SHOP_WAREHOUSE_LAT', 14.5378000),
+            'lng' => (float) env('SHOP_WAREHOUSE_LNG', 121.0022000),
         ],
         'branches' => [
             [
                 'name' => 'Pasay',
                 'address' => '161 Vallhalla Extension, Pasay City, Philippines',
-                'lat' => 14.5378,
-                'lng' => 121.0022,
+                'lat' => 14.5378000,
+                'lng' => 121.0022000,
             ],
             [
                 'name' => 'General Trias',
                 'address' => 'Phase 10 Block 50 Lot 8 Wellington Place Pascam II, General Trias, Cavite, Philippines',
-                'lat' => 14.3336,
-                'lng' => 120.8809,
+                'lat' => 14.3336000,
+                'lng' => 120.8809000,
             ],
         ],
     ],
@@ -61,7 +67,6 @@ return [
         'Bacoor' => ['lat' => 14.4590, 'lng' => 120.9289],
         'Imus' => ['lat' => 14.4297, 'lng' => 120.9367],
         'Dasmariñas' => ['lat' => 14.3294, 'lng' => 120.9367],
-        'Dasmarinas' => ['lat' => 14.3294, 'lng' => 120.9367],
         'General Trias' => ['lat' => 14.3058, 'lng' => 120.8636],
         'Tanza' => ['lat' => 14.3917, 'lng' => 120.8531],
         'Kawit' => ['lat' => 14.4442, 'lng' => 120.9017],
@@ -72,17 +77,14 @@ return [
         'Naic' => ['lat' => 14.3167, 'lng' => 120.7667],
         'Carmona' => ['lat' => 14.3147, 'lng' => 121.0644],
         'General Mariano Alvarez' => ['lat' => 14.2992, 'lng' => 121.0586],
-        'GMA' => ['lat' => 14.2992, 'lng' => 121.0586],
 
         // Laguna
         'San Pedro' => ['lat' => 14.3594, 'lng' => 121.0556],
         'Biñan' => ['lat' => 14.3328, 'lng' => 121.0811],
-        'Binan' => ['lat' => 14.3328, 'lng' => 121.0811],
         'Santa Rosa' => ['lat' => 14.3122, 'lng' => 121.1114],
         'Cabuyao' => ['lat' => 14.2725, 'lng' => 121.1281],
         'Calamba' => ['lat' => 14.1956, 'lng' => 121.1411],
         'Los Baños' => ['lat' => 14.1667, 'lng' => 121.2167],
-        'Los Banos' => ['lat' => 14.1667, 'lng' => 121.2167],
         'San Pablo' => ['lat' => 14.0683, 'lng' => 121.3250],
         'Santa Cruz' => ['lat' => 14.2814, 'lng' => 121.4156],
 

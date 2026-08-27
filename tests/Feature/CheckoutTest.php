@@ -602,154 +602,14 @@ test('free shipping coupon makes the order shipping free', function () {
     expect(CouponUsage::where('order_id', $order->id)->exists())->toBeTrue();
 });
 
-test('placing an order stores provided delivery coordinates without geocoding', function () {
-    Http::fake([
-        'pg-sandbox.paymaya.com/*' => Http::response([
-            'checkoutId' => 'cs_coords',
-            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords',
-        ], 200),
-    ]);
-
-    $this->mock(GeocodingService::class, function ($mock) {
-        $mock->shouldReceive('geocode')->never();
-        $mock->shouldReceive('reverseGeocode')->andReturn([
-            'address' => 'San Antonio, Springfield, NCR, Philippines',
-            'locality' => 'Springfield',
-            'region' => 'NCR',
-        ]);
-        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, San Antonio, Springfield, NCR 1234');
-    });
-
-    $user = User::factory()->create();
-    $product = Product::factory()->create(['product_quantity' => 5]);
-    Cart::factory()->create([
-        'user_id' => $user->id,
-        'product_id' => $product->id,
-        'quantity' => 2,
-    ]);
-
-    $payload = validCheckoutPayload();
-    $payload['delivery_lat'] = '14.5460616';
-    $payload['delivery_lng'] = '120.9977219';
-
-    $this->actingAs($user)
-        ->post('/checkout/place-order', $payload)
-        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords');
-
-    $order = Order::where('user_id', $user->id)->first();
-
-    expect((float) $order->delivery_lat)->toBe(14.5460616);
-    expect((float) $order->delivery_lng)->toBe(120.9977219);
-});
-
-test('placing an order ignores coordinates that do not match the address and falls back to geocoding', function () {
-    Http::fake([
-        'pg-sandbox.paymaya.com/*' => Http::response([
-            'checkoutId' => 'cs_coords_spoof',
-            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords_spoof',
-        ], 200),
-    ]);
-
-    $this->mock(GeocodingService::class, function ($mock) {
-        $mock->shouldReceive('reverseGeocode')->andReturn([
-            'address' => 'Somewhere, Manila, Philippines',
-            'locality' => 'Manila',
-            'region' => 'NCR',
-        ]);
-        $mock->shouldReceive('geocode')->once()->andReturn(['lat' => 14.55, 'lng' => 121.01]);
-        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, San Antonio, Springfield, NCR 1234');
-    });
-
-    $user = User::factory()->create();
-    $product = Product::factory()->create(['product_quantity' => 5]);
-    Cart::factory()->create([
-        'user_id' => $user->id,
-        'product_id' => $product->id,
-        'quantity' => 2,
-    ]);
-
-    $payload = validCheckoutPayload();
-    $payload['delivery_lat'] = '14.5460616';
-    $payload['delivery_lng'] = '120.9977219';
-
-    $this->actingAs($user)
-        ->post('/checkout/place-order', $payload)
-        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords_spoof');
-
-    $order = Order::where('user_id', $user->id)->first();
-
-    expect((float) $order->delivery_lat)->toBe(14.55);
-    expect((float) $order->delivery_lng)->toBe(121.01);
-});
-
-test('placing an order falls back to geocoding for out-of-bounds coordinates', function () {
-    Http::fake([
-        'pg-sandbox.paymaya.com/*' => Http::response([
-            'checkoutId' => 'cs_coords_fallback',
-            'redirectUrl' => 'https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords_fallback',
-        ], 200),
-    ]);
-
-    $this->mock(GeocodingService::class, function ($mock) {
-        $mock->shouldReceive('geocode')->once()->andReturn(['lat' => 14.55, 'lng' => 121.01]);
-        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, San Antonio, Springfield, NCR 1234');
-    });
-
-    $user = User::factory()->create();
-    $product = Product::factory()->create(['product_quantity' => 5]);
-    Cart::factory()->create([
-        'user_id' => $user->id,
-        'product_id' => $product->id,
-        'quantity' => 2,
-    ]);
-
-    $payload = validCheckoutPayload();
-    $payload['delivery_lat'] = '999';
-    $payload['delivery_lng'] = '999';
-
-    $this->actingAs($user)
-        ->post('/checkout/place-order', $payload)
-        ->assertRedirect('https://payments-web-sandbox.paymaya.com/v2/checkout?id=cs_coords_fallback');
-
-    $order = Order::where('user_id', $user->id)->first();
-
-    expect((float) $order->delivery_lat)->toBe(14.55);
-    expect((float) $order->delivery_lng)->toBe(121.01);
-});
-
-test('invalid delivery coordinates are rejected at checkout', function () {
-    $user = User::factory()->create();
-    $product = Product::factory()->create(['product_quantity' => 5]);
-    Cart::factory()->create([
-        'user_id' => $user->id,
-        'product_id' => $product->id,
-        'quantity' => 1,
-    ]);
-
-    $payload = validCheckoutPayload();
-    $payload['delivery_lat'] = 'not-a-number';
-
-    $this->actingAs($user)
-        ->from('/checkout')
-        ->post('/checkout/place-order', $payload)
-        ->assertSessionHasErrors('delivery_lat');
-
-    expect(Order::count())->toBe(0);
-});
-
-test('shipping estimate uses provided coordinates without geocoding', function () {
+test('shipping estimate geocodes the address server-side', function () {
     Http::fake();
 
     config(['services.lalamove.key' => '', 'services.lalamove.secret' => '']);
 
     $this->mock(GeocodingService::class, function ($mock) {
-        $mock->shouldReceive('geocode')->never();
-        $mock->shouldReceive('reverseGeocode')->andReturn([
-            'address' => 'Makati, Philippines',
-            'locality' => 'Makati',
-            'region' => 'NCR',
-        ]);
-        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, Springfield, NCR 1234');
+        $mock->shouldReceive('geocode')->once()->andReturn(['lat' => 14.55, 'lng' => 121.01]);
+        $mock->shouldReceive('fullAddress')->andReturn('123 Main St, San Antonio, Springfield, NCR 1234');
     });
 
     $user = User::factory()->create();
@@ -760,7 +620,7 @@ test('shipping estimate uses provided coordinates without geocoding', function (
     ]);
 
     $this->actingAs($user)
-        ->getJson('/checkout/estimate-shipping?city=Makati&delivery_lat=14.55&delivery_lng=121.01')
+        ->getJson('/checkout/estimate-shipping?city=Makati&barangay=San+Antonio&region=NCR&postal=1234')
         ->assertOk()
         ->assertJsonStructure(['shippingFee', 'source'])
         ->assertJson(['source' => 'flat_rate']);

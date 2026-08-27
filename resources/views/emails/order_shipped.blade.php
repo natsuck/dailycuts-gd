@@ -61,4 +61,17 @@
 
 <br>
 
-<p>Thank you for ordering from <strong style="color:#D2042D;">The Daily Cuts by GD</strong></p>
+@if(!empty($order->tracking_url))
+    <p><strong>Track your delivery:</strong></p>
+    <p>
+        <a href="{{ $order->tracking_url }}" style="display:inline-block;background:#D2042D;color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">Track on Lalamove</a>
+    </p>
+    <p style="color:#666;">If the button doesn't work, copy and paste this link into your browser:</p>
+    <p>{{ $order->tracking_url }}</p>
+@else
+    <p>Tracking will be available once your courier has been assigned. You can also track your order anytime in your account under <strong>My Orders</strong>.</p>
+@endif
+
+<br>
+
+<p>Thank you for ordering from <strong style="color:#D2042D;">The Daily Cuts</strong></p>

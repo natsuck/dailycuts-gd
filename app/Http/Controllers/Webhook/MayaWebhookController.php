@@ -4,16 +4,18 @@ namespace App\Http\Controllers\Webhook;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\DispatchLalamoveDelivery;
+use App\Mail\OrderConfirmationMail;
 use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Models\MayaWebhookEvent;
 use App\Models\Order;
 use App\Services\InventoryService;
-use App\Services\MayaPaymentConfirmationService;
+use App\Services\MayaReconciliationService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Handles Maya Checkout webhooks.
@@ -29,7 +31,7 @@ use Illuminate\Support\Facades\Log;
  */
 class MayaWebhookController extends Controller
 {
-    public function handle(Request $request, InventoryService $inventory, MayaPaymentConfirmationService $confirmation)
+    public function handle(Request $request, InventoryService $inventory, MayaReconciliationService $reconciliation)
     {
         if (! $this->hasAllowedIp($request)) {
             Log::warning('Rejected Maya webhook from an unlisted IP.', [
@@ -80,7 +82,7 @@ class MayaWebhookController extends Controller
         $isDuplicate = false;
         $confirmedOrderId = null;
 
-        DB::transaction(function () use ($order, $inventory, $confirmation, $payload, $status, $paymentId, $requestReference, &$isDuplicate, &$confirmedOrderId) {
+        DB::transaction(function () use ($order, $inventory, $reconciliation, $payload, $status, $paymentId, $requestReference, &$isDuplicate, &$confirmedOrderId) {
             // Record the event first. The unique (payment_id, event) constraint
             // makes any re-delivery of the same event a no-op regardless of
             // order state; the order-state guards below remain as a second
@@ -100,7 +102,13 @@ class MayaWebhookController extends Controller
             }
 
             if ($status === 'PAYMENT_SUCCESS') {
-                $confirmedOrderId = $confirmation->confirm($order, $payload);
+                // The webhook is unsigned. Before marking the order paid,
+                // verify server-to-server with Maya's Get Checkout API so a
+                // spoofed/forged webhook cannot confirm a payment that never
+                // happened. Verification returns null when Maya does not
+                // confirm (or the query is inconclusive) -- the scheduled
+                // reconciler will retry and pick up any genuine payment.
+                $confirmedOrderId = $reconciliation->verifyWebhook($order);
 
                 return;
             }
@@ -125,10 +133,22 @@ class MayaWebhookController extends Controller
         });
 
         if ($confirmedOrderId) {
+            $this->sendOrderConfirmation($confirmedOrderId);
             $this->dispatchLalamove($confirmedOrderId);
         }
 
         return response()->json(['status' => 'ok', 'duplicate' => $isDuplicate]);
+    }
+
+    protected function sendOrderConfirmation(int $orderId): void
+    {
+        $order = Order::with(['items', 'user'])->find($orderId);
+
+        if (! $order || ! $order->user) {
+            return;
+        }
+
+        Mail::to($order->user->email)->queue(new OrderConfirmationMail($order));
     }
 
     protected function dispatchLalamove(int $orderId): void

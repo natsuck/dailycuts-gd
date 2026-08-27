@@ -44,13 +44,20 @@ class LalamoveDeliveryService
         // Fallback: request a fresh quotation using the saved delivery coordinates.
         $hasCoords = $order->delivery_lat !== null && $order->delivery_lng !== null;
 
+        $dropoffAddress = trim(implode(', ', array_filter([
+            $order->address,
+            $order->barangay,
+            $order->city,
+            $order->region,
+        ])));
+
         $quotation = $this->pricing->quotationForCity(
             $order->city,
             $item,
             $specialRequests,
             $hasCoords ? (float) $order->delivery_lat : null,
             $hasCoords ? (float) $order->delivery_lng : null,
-            $hasCoords ? $order->address : null,
+            $dropoffAddress !== '' ? $dropoffAddress : null,
         );
 
         if (! $quotation
@@ -61,6 +68,22 @@ class LalamoveDeliveryService
                 ?? 'No valid Lalamove quotation for city "'.$order->city.'"';
 
             return false;
+        }
+
+        $freshPrice = (float) data_get($quotation, 'priceBreakdown.total', 0);
+        $checkoutPrice = (float) $order->shipping_fee;
+
+        if ($checkoutPrice > 0 && $freshPrice > 0) {
+            $diff = round($freshPrice - $checkoutPrice, 2);
+            $pct = round(($diff / $checkoutPrice) * 100, 1);
+
+            Log::warning('Lalamove fresh quotation price differs from checkout', [
+                'order_id' => $order->id,
+                'checkout_shipping_fee' => $checkoutPrice,
+                'fresh_shipping_fee' => $freshPrice,
+                'difference' => $diff,
+                'difference_pct' => $pct,
+            ]);
         }
 
         $sender = $this->senderFromStop($quotation['stops'][0]['stopId'], $warehouse);

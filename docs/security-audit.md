@@ -1,6 +1,6 @@
 # Security Audit & Remediation Report
 
-Audited by opencode on 2026-08-01. App: The Daily Cuts by GD (Laravel 12 e-commerce).
+Audited by opencode on 2026-08-01. App: The Daily Cuts (Laravel 12 e-commerce).
 
 All items below have been implemented at the code level. Environment secrets (`.env`) were not modified by agreement. A summary of each finding, its severity, and the remediation follows.
 

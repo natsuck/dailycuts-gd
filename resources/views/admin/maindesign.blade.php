@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>@yield('page_title', 'Admin Dashboard') | The Daily Cuts by GD</title>
-    <meta name="description" content="The Daily Cuts by GD admin dashboard" />
+    <title>@yield('page_title', 'Admin Dashboard') | The Daily Cuts</title>
+    <meta name="description" content="The Daily Cuts admin dashboard" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
     <link rel="stylesheet" href="{{ asset('admin/vendor/bootstrap/css/bootstrap.min.css') }}" />
@@ -232,7 +232,7 @@
         <footer class="footer admin-footer">
           <div class="footer__block no-margin-bottom block">
             <div class="container-fluid text-center">
-              <p class="no-margin-bottom">2026 &copy; The Daily Cuts by GD</p>
+              <p class="no-margin-bottom">2026 &copy; The Daily Cuts</p>
             </div>
           </div>
         </footer>

@@ -10,29 +10,32 @@ use Illuminate\Support\Facades\Http;
 
 function fakeLalamoveOrderFlow(): void
 {
-    Http::fake([
-        'rest.sandbox.lalamove.com/*' => function (Request $request) {
-            if (str_ends_with($request->url(), '/v3/quotations')) {
-                return Http::response([
-                    'data' => [
-                        'quotationId' => 'quotation_test_1',
-                        'stops' => [
-                            ['stopId' => 'stop_pickup_1'],
-                            ['stopId' => 'stop_dropoff_1'],
-                        ],
-                        'priceBreakdown' => ['total' => 150],
-                    ],
-                ], 201);
-            }
-
+    $handler = function (Request $request) {
+        if (str_ends_with($request->url(), '/v3/quotations')) {
             return Http::response([
                 'data' => [
-                    'orderId' => 'order_test_1',
-                    'status' => 'ASSIGNING_DRIVER',
-                    'shareLink' => 'https://track.lalamove.test/order_test_1',
+                    'quotationId' => 'quotation_test_1',
+                    'stops' => [
+                        ['stopId' => 'stop_pickup_1'],
+                        ['stopId' => 'stop_dropoff_1'],
+                    ],
+                    'priceBreakdown' => ['total' => 150],
                 ],
             ], 201);
-        },
+        }
+
+        return Http::response([
+            'data' => [
+                'orderId' => 'order_test_1',
+                'status' => 'ASSIGNING_DRIVER',
+                'shareLink' => 'https://track.lalamove.test/order_test_1',
+            ],
+        ], 201);
+    };
+
+    Http::fake([
+        'rest.lalamove.com/*' => $handler,
+        'rest.sandbox.lalamove.com/*' => $handler,
     ]);
 }
 
@@ -120,6 +123,12 @@ test('dispatch does not send item or specialRequests in the order payload', func
 
 test('dispatch surfaces the real Lalamove error message on a 422', function () {
     Http::fake([
+        'rest.lalamove.com/*' => Http::response([
+            'errors' => [
+                ['id' => 'ERR_INVALID_FIELD', 'message' => "'+63 962 796 1415' is not valid 'phone'."],
+                ['id' => 'ERR_UNKNOWN_FIELD', 'message' => "additionalProperties 'item', 'specialRequests' not allowed"],
+            ],
+        ], 422),
         'rest.sandbox.lalamove.com/*' => Http::response([
             'errors' => [
                 ['id' => 'ERR_INVALID_FIELD', 'message' => "'+63 962 796 1415' is not valid 'phone'."],

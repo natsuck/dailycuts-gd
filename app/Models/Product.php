@@ -15,6 +15,10 @@ class Product extends Model
         'product_image',
         'product_category',
         'product_type',
+        'fresh_storage',
+        'fresh_prep',
+        'fresh_delivery',
+        'fresh_best_for',
     ];
 
     protected $casts = [
@@ -68,6 +72,37 @@ class Product extends Model
             'produce' => 'Fresh Produce',
             default => 'Fresh',
         };
+    }
+
+    /**
+     * Per-product freshness notes (Storage, Prep, Delivery, Best For).
+     *
+     * Falls back to a generic default for any field left empty so existing
+     * products render fully until the admin supplies their own values.
+     */
+    public function freshnessNotes(): array
+    {
+        $defaults = [
+            'Storage' => 'Keep chilled',
+            'Prep' => 'Cook thoroughly',
+            'Delivery' => 'Temperature-controlled',
+            'Best For' => 'Daily meals',
+        ];
+
+        $notes = [
+            'Storage' => $this->fresh_storage,
+            'Prep' => $this->fresh_prep,
+            'Delivery' => $this->fresh_delivery,
+            'Best For' => $this->fresh_best_for,
+        ];
+
+        foreach ($notes as $key => $value) {
+            $notes[$key] = ($value !== null && trim($value) !== '')
+                ? $value
+                : $defaults[$key];
+        }
+
+        return $notes;
     }
 
     public function hasVariants(): bool

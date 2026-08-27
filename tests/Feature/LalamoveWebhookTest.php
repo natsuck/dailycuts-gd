@@ -1,7 +1,10 @@
 <?php
 
+use App\Mail\OrderDeliveredMail;
+use App\Mail\OrderShippedMail;
 use App\Models\Order;
 use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 
 function buildLalamoveSignature(string $rawPayload, string $secret = 'test_lalamove_secret'): array
 {
@@ -11,6 +14,7 @@ function buildLalamoveSignature(string $rawPayload, string $secret = 'test_lalam
 }
 
 beforeEach(function () {
+    Mail::fake();
     config(['services.lalamove.key' => 'test_lalamove_key']);
     config(['services.lalamove.secret' => 'test_lalamove_secret']);
 });
@@ -294,4 +298,92 @@ test('a DRIVER_ASSIGNED webhook stores the driver details', function () {
     expect($order->lalamove_driver_name)->toBe('Juan Dela Cruz');
     expect($order->lalamove_driver_phone)->toBe('+639171234567');
     expect($order->last_lalamove_webhook_at)->not->toBeNull();
+});
+
+test('a DRIVER_ASSIGNED webhook queues the shipped email once', function () {
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'lalamove_order_id' => 'ord_shipped',
+        'status' => 'processing',
+        'delivery_status' => 'assigning_driver',
+        'payment_status' => 'paid',
+        'tracking_url' => 'https://track.lalamove.test/order_shipped',
+    ]);
+
+    $payload = [
+        'apiKey' => 'test_lalamove_key',
+        'eventName' => 'DRIVER_ASSIGNED',
+        'data' => [
+            'orderId' => 'ord_shipped',
+            'driver' => ['name' => 'Juan Dela Cruz', 'phone' => '+639171234567'],
+            'updatedAt' => now()->toIso8601String(),
+        ],
+    ];
+
+    $this->postJson('/lalamove/webhook', $payload, buildLalamoveSignature(json_encode($payload)))->assertOk();
+    $this->postJson('/lalamove/webhook', $payload, buildLalamoveSignature(json_encode($payload)))->assertOk();
+
+    Mail::assertQueued(OrderShippedMail::class, function (OrderShippedMail $mail) use ($order, $user) {
+        return $mail->hasTo($user->email) && $mail->order->id === $order->id;
+    });
+    Mail::assertQueued(OrderShippedMail::class, 1);
+});
+
+test('a COMPLETED webhook queues the delivered email to the customer', function () {
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'lalamove_order_id' => 'ord_delivered_mail',
+        'status' => 'processing',
+        'delivery_status' => 'on_going',
+        'payment_status' => 'paid',
+        'lalamove_driver_name' => 'Juan Dela Cruz',
+    ]);
+
+    $payload = [
+        'apiKey' => 'test_lalamove_key',
+        'eventName' => 'ORDER_STATUS_CHANGED',
+        'data' => [
+            'orderId' => 'ord_delivered_mail',
+            'status' => 'COMPLETED',
+            'updatedAt' => now()->toIso8601String(),
+        ],
+    ];
+
+    $this->postJson('/lalamove/webhook', $payload, buildLalamoveSignature(json_encode($payload)))->assertOk();
+
+    $order->refresh();
+    expect($order->status)->toBe('delivered');
+
+    Mail::assertQueued(OrderDeliveredMail::class, function (OrderDeliveredMail $mail) use ($order, $user) {
+        return $mail->hasTo($user->email) && $mail->order->id === $order->id;
+    });
+});
+
+test('a repeated COMPLETED webhook does not queue the delivered email twice', function () {
+    $user = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'lalamove_order_id' => 'ord_delivered_dup',
+        'status' => 'processing',
+        'delivery_status' => 'on_going',
+        'payment_status' => 'paid',
+        'lalamove_driver_name' => 'Juan Dela Cruz',
+    ]);
+
+    $payload = [
+        'apiKey' => 'test_lalamove_key',
+        'eventName' => 'ORDER_STATUS_CHANGED',
+        'data' => [
+            'orderId' => 'ord_delivered_dup',
+            'status' => 'COMPLETED',
+            'updatedAt' => now()->toIso8601String(),
+        ],
+    ];
+
+    $this->postJson('/lalamove/webhook', $payload, buildLalamoveSignature(json_encode($payload)))->assertOk();
+    $this->postJson('/lalamove/webhook', $payload, buildLalamoveSignature(json_encode($payload)))->assertOk();
+
+    Mail::assertQueued(OrderDeliveredMail::class, 1);
 });

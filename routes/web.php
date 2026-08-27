@@ -8,7 +8,9 @@ use App\Http\Controllers\AdminStoreLocationController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\NewsletterController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
@@ -20,18 +22,26 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [UserController::class, 'home'])->name('index');
-Route::get('/order-success', fn () => view('order_success'))->name('order.success');
+Route::get('/order-success', [PageController::class, 'orderSuccess'])->name('order.success');
 Route::get('/product_details/{id}', [UserController::class, 'productDetails'])->name('product_details');
 Route::get('/shop', [UserController::class, 'shop'])->name('shop');
 Route::get('/contact_us', [UserController::class, 'contactUs'])->name('contact_us');
 Route::get('/find-our-stores', [UserController::class, 'storeLocations'])->name('store.locations');
-Route::get('/privacy-policy', fn () => view('privacy-policy'))->name('privacy.policy');
-Route::get('/terms-and-conditions', fn () => view('terms-and-conditions'))->name('terms.conditions');
-Route::get('/faq', fn () => view('faq'))->name('faq');
-Route::get('/store-policies', fn () => view('store-policies'))->name('store.policies');
+Route::get('/privacy-policy', [PageController::class, 'privacyPolicy'])->name('privacy.policy');
+Route::get('/terms-and-conditions', [PageController::class, 'termsAndConditions'])->name('terms.conditions');
+Route::get('/faq', [PageController::class, 'faq'])->name('faq');
+Route::get('/store-policies', [PageController::class, 'storePolicies'])->name('store.policies');
 Route::post('/contact_us', [UserController::class, 'submitResellerInquiry'])
     ->middleware('throttle:10,1')
     ->name('contact_us.submit');
+
+Route::post('/newsletter', [NewsletterController::class, 'subscribe'])
+    ->middleware('throttle:5,1')
+    ->name('newsletter.subscribe');
+
+Route::get('/newsletter/unsubscribe/{subscriber}', [NewsletterController::class, 'unsubscribe'])
+    ->middleware('signed')
+    ->name('newsletter.unsubscribe');
 
 Route::get('/dashboard', [UserController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -62,7 +72,7 @@ Route::middleware(['auth', 'verified', 'customer'])->group(function () {
     Route::delete('/checkout/coupon', [CheckoutController::class, 'removeCoupon'])->name('checkout.couponRemove');
 });
 
-Route::get('/maya/webhook', fn () => response()->json(['status' => 'ok']));
+Route::get('/maya/webhook', [PageController::class, 'mayaWebhook']);
 
 Route::post('/maya/webhook', [MayaWebhookController::class, 'handle'])
     ->middleware('throttle:120,1')

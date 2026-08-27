@@ -8,7 +8,6 @@ use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\SavedAddress;
 use App\Services\AddressNormalizer;
 use App\Services\GeocodingService;
 use App\Services\InventoryService;
@@ -124,8 +123,7 @@ class CheckoutController extends Controller
             ]);
         }
 
-        $coords = $this->verifiedCoordinates($request->all())
-            ?? $this->deliveryCoordinates($request->all(), $geocoder);
+        $coords = $this->deliveryCoordinates($request->all(), $geocoder);
 
         if (! $pricing->lalamoveConfigured()) {
             return response()->json([
@@ -135,9 +133,10 @@ class CheckoutController extends Controller
         }
 
         // Request a live quotation so errors are surfaced clearly to the customer.
+        $cart = Cart::where('user_id', Auth::id())->with('product')->get();
         $quote = $pricing->quotationForCity(
             $city,
-            null,
+            $pricing->itemPayload($cart),
             null,
             $coords['lat'] ?? null,
             $coords['lng'] ?? null,
@@ -169,15 +168,12 @@ class CheckoutController extends Controller
             'address2' => ['nullable', 'string', 'max:255'],
             'barangay' => ['required', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
             'region' => ['required', 'string', 'max:255'],
             'postal' => ['required', 'string', 'regex:/^\d{4}$/'],
             'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
             'email' => ['required', 'email', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'delivery_lat' => ['nullable', 'numeric'],
-            'delivery_lng' => ['nullable', 'numeric'],
-            'delivery_place_id' => ['nullable', 'string', 'max:255'],
-            'formatted_address' => ['nullable', 'string', 'max:500'],
         ], [
             'first_name.regex' => 'First name may only contain letters, spaces, hyphens, and apostrophes.',
             'last_name.regex' => 'Last name may only contain letters, spaces, hyphens, and apostrophes.',
@@ -229,8 +225,7 @@ class CheckoutController extends Controller
 
         $address = trim($validated['address'].' '.($validated['address2'] ?? ''));
         $fullAddress = trim($address.', '.$validated['barangay'].', '.$validated['city'].', '.$validated['region'].' '.$validated['postal']);
-        $coords = $this->verifiedCoordinates($validated)
-            ?? $this->deliveryCoordinates($validated, $geocoder);
+        $coords = $this->deliveryCoordinates($validated, $geocoder);
 
         // Request the Lalamove quotation (fixed warehouse pickup → customer delivery coords)
         // so the fee shown at checkout matches the quotation used for dispatch later.
@@ -275,7 +270,6 @@ class CheckoutController extends Controller
         }
 
         $totalAmount = round((float) $totals['grandTotal'], 2);
-        $deliveryPlaceId = $validated['delivery_place_id'] ?? null;
 
         // Reuse an existing order when the same checkout form is submitted more
         // than once (double-click, browser resubmit, or a retried request).
@@ -303,7 +297,7 @@ class CheckoutController extends Controller
         $order = null;
 
         try {
-            $order = DB::transaction(function () use ($validated, $fullAddress, $coords, $totals, $cart, $inventory, $coupon, $quote, $warehouse, $deliveryAddress, $deliveryPlaceId, $idempotencyKey) {
+            $order = DB::transaction(function () use ($validated, $fullAddress, $coords, $totals, $cart, $inventory, $coupon, $quote, $warehouse, $deliveryAddress, $idempotencyKey) {
                 $order = new Order();
                 $order->user_id = Auth::id();
                 $order->idempotency_key = $idempotencyKey !== '' ? $idempotencyKey : null;
@@ -330,18 +324,6 @@ class CheckoutController extends Controller
                 $order->delivery_lat = $coords['lat'] ?? null;
                 $order->delivery_lng = $coords['lng'] ?? null;
                 $order->save();
-
-                // Save the selected Google Places address to the customer's address book.
-                if ($deliveryPlaceId) {
-                    SavedAddress::updateOrCreate(
-                        ['user_id' => Auth::id(), 'place_id' => $deliveryPlaceId],
-                        [
-                            'formatted_address' => $deliveryAddress,
-                            'latitude' => $coords['lat'] ?? null,
-                            'longitude' => $coords['lng'] ?? null,
-                        ],
-                    );
-                }
 
                 foreach ($cart as $item) {
                     OrderItem::create([
@@ -644,94 +626,13 @@ class CheckoutController extends Controller
         return $geocoder->geocode($geocoder->fullAddress($this->addressParts($data)));
     }
 
-    protected function validatedCoordinates(array $data): ?array
-    {
-        $lat = $data['delivery_lat'] ?? null;
-        $lng = $data['delivery_lng'] ?? null;
-
-        if ($lat === null || $lng === null || $lat === '' || $lng === '') {
-            return null;
-        }
-
-        $lat = (float) $lat;
-        $lng = (float) $lng;
-
-        if (! is_finite($lat) || ! is_finite($lng)) {
-            return null;
-        }
-
-        if ($lat < -10 || $lat > 21 || $lng < 116 || $lng > 127) {
-            return null;
-        }
-
-        return ['lat' => $lat, 'lng' => $lng];
-    }
-
-    /**
-     * Only trust client-supplied coordinates when a reverse geocode of them
-     * matches the submitted city or formatted address. Otherwise return null
-     * so the caller falls back to geocoding the typed address.
-     */
-    protected function verifiedCoordinates(array $data): ?array
-    {
-        $coords = $this->validatedCoordinates($data);
-
-        if ($coords === null) {
-            return null;
-        }
-
-        $city = strtolower(trim($data['city'] ?? ''));
-        $formatted = strtolower(trim($data['formatted_address'] ?? ''));
-
-        $reverse = app(GeocodingService::class)->reverseGeocode($coords['lat'], $coords['lng']);
-
-        if (! $reverse) {
-            return null;
-        }
-
-        $haystack = strtolower(implode(' ', array_filter(array_map('strval', $reverse))));
-
-        if ($city !== '' && str_contains($haystack, $city)) {
-            return $coords;
-        }
-
-        if ($formatted !== '' && $this->addressesOverlap($formatted, $haystack)) {
-            return $coords;
-        }
-
-        return null;
-    }
-
-    protected function addressesOverlap(string $a, string $b): bool
-    {
-        $tokens = preg_split('/[^a-z0-9]+/', $a, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-
-        foreach ($tokens as $token) {
-            if (strlen($token) >= 4 && str_contains($b, $token)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     protected function fullAddress(array $data): string
     {
         return app(GeocodingService::class)->fullAddress($this->addressParts($data));
     }
 
-    /**
-     * Prefer the Google Places formatted address when available, otherwise
-     * fall back to the concatenated checkout fields.
-     */
     protected function deliveryAddress(array $data): string
     {
-        $formatted = trim($data['formatted_address'] ?? '');
-
-        if ($formatted !== '') {
-            return $formatted;
-        }
-
         return $this->fullAddress($data);
     }
 

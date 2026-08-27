@@ -1,12 +1,15 @@
 <?php
 
 use App\Jobs\DispatchLalamoveDelivery;
+use App\Mail\OrderConfirmationMail;
 use App\Models\Cart;
 use App\Models\MayaWebhookEvent;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 
 function mayaWebhookIp(): string
@@ -114,6 +117,7 @@ function mayaOrderWithReference(array $attributes = []): Order
         'status' => 'pending',
         'payment_status' => 'unpaid',
         'payment_request_reference' => 'rrn_123',
+        'checkout_session_id' => 'cs_123',
     ], $attributes));
 }
 
@@ -132,9 +136,33 @@ function mayaOrderWithReservedStock(int $stock = 5): array
     return [$user, $product, $order];
 }
 
+/**
+ * Get Checkout API response that the server-to-server verification call
+ * receives from Maya. This is the authoritative state used to confirm a
+ * PAYMENT_SUCCESS webhook (the webhook body alone is never trusted).
+ */
+function mayaVerifiedCheckoutResponse(Order $order, string $paymentStatus, array $overrides = []): array
+{
+    $recordState = $paymentStatus === 'PAYMENT_SUCCESS' ? 'COMPLETED' : 'EXPIRED';
+
+    return array_replace_recursive([
+        'id' => $order->checkout_session_id,
+        'status' => $recordState,
+        'paymentStatus' => $paymentStatus,
+        'requestReferenceNumber' => $order->payment_request_reference,
+        'totalAmount' => [
+            'value' => number_format((float) $order->total, 2, '.', ''),
+            'currency' => 'PHP',
+        ],
+        'paymentScheme' => 'master-card',
+    ], $overrides);
+}
+
 beforeEach(function () {
+    Mail::fake();
     Queue::fake();
     config(['maya.webhook_ips' => [mayaWebhookIp()]]);
+    config(['maya.secret_key' => 'sk_test']);
 });
 
 test('webhook is rejected when the request does not come from a Maya IP', function () {
@@ -184,39 +212,75 @@ test('PAYMENT_SUCCESS marks the order paid and clears the cart', function () {
     $order = mayaOrderWithReference(['user_id' => $user->id, 'total' => 1500]);
     Cart::factory()->create(['user_id' => $user->id]);
 
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS'),
+            200,
+        ),
+    ]);
+
     $this->postJson('/maya/webhook', mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])
         ->assertOk()
         ->assertJson(['status' => 'ok']);
 
     $order->refresh();
     expect($order->payment_status)->toBe('paid');
-    expect($order->payment_intent_id)->toBe('e732f996-cb87-4120-b712-166d8183c01d');
+    expect($order->payment_intent_id)->toBe($order->checkout_session_id);
     expect($order->payment_method)->toBe('card');
     expect(Cart::where('user_id', $user->id)->count())->toBe(0);
     Queue::assertPushed(DispatchLalamoveDelivery::class, fn (DispatchLalamoveDelivery $job) => $job->orderId === $order->id);
 });
 
-test('PAYMENT_SUCCESS maps a maya-wallet fund source to the maya method', function () {
-    $order = mayaOrderWithReference(['total' => 1500]);
+test('PAYMENT_SUCCESS queues an order confirmation email to the customer', function () {
+    $user = User::factory()->create();
+    $order = mayaOrderWithReference(['user_id' => $user->id, 'total' => 1500]);
 
-    $payload = mayaPaymentSuccessPayload($order, [
-        'fundSource' => [
-            'type' => 'maya-wallet',
-            'id' => 'e2564ba3-c7c9-48f9-905e-029a9b4b988c',
-            'description' => '******eee4',
-            'details' => [
-                'firstName' => 'MAYA',
-                'middleName' => 'JUAN',
-                'lastName' => 'CRUZ',
-                'msisdn' => '+639172220366',
-                'profileId' => '712393985914',
-                'email' => '******',
-                'masked' => '********0366',
-            ],
-        ],
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS'),
+            200,
+        ),
+    ]);
+
+    $this->postJson('/maya/webhook', mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])
+        ->assertOk()
+        ->assertJson(['status' => 'ok']);
+
+    Mail::assertQueued(OrderConfirmationMail::class, function (OrderConfirmationMail $mail) use ($order, $user) {
+        return $mail->hasTo($user->email) && $mail->order->id === $order->id;
+    });
+});
+
+test('order confirmation email is queued only once for re-delivered webhooks', function () {
+    $user = User::factory()->create();
+    $order = mayaOrderWithReference(['user_id' => $user->id, 'total' => 1500]);
+
+    $payload = mayaPaymentSuccessPayload($order);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS'),
+            200,
+        ),
     ]);
 
     $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
+    $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
+
+    Mail::assertQueued(OrderConfirmationMail::class, 1);
+});
+
+test('PAYMENT_SUCCESS maps a maya-wallet fund source to the maya method', function () {
+    $order = mayaOrderWithReference(['total' => 1500]);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS', ['paymentScheme' => 'maya-wallet']),
+            200,
+        ),
+    ]);
+
+    $this->postJson('/maya/webhook', $payload = mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
 
     expect($order->refresh()->payment_method)->toBe('maya');
 });
@@ -224,45 +288,75 @@ test('PAYMENT_SUCCESS maps a maya-wallet fund source to the maya method', functi
 test('PAYMENT_SUCCESS maps a maya-credit fund source to the maya method', function () {
     $order = mayaOrderWithReference(['total' => 1500]);
 
-    $payload = mayaPaymentSuccessPayload($order, [
-        'fundSource' => [
-            'type' => 'maya-credit',
-            'id' => 'e2564ba3-c7c9-48f9-905e-029a9b4b988c',
-            'description' => '******eee4',
-        ],
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS', ['paymentScheme' => 'maya-credit']),
+            200,
+        ),
     ]);
 
-    $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
+    $this->postJson('/maya/webhook', mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
 
     expect($order->refresh()->payment_method)->toBe('maya');
 });
 
-test('PAYMENT_SUCCESS is ignored when the paid amount does not match the order total', function () {
+test('PAYMENT_SUCCESS is ignored when the verified amount does not match the order total', function () {
     $order = mayaOrderWithReference(['total' => 1500]);
 
-    $payload = mayaPaymentSuccessPayload($order, ['amount' => '1.00']);
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS', [
+                'totalAmount' => ['value' => '1.00', 'currency' => 'PHP'],
+            ]),
+            200,
+        ),
+    ]);
 
-    $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
+    $this->postJson('/maya/webhook', mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
 
     expect($order->refresh()->payment_status)->toBe('unpaid');
 });
 
-test('PAYMENT_SUCCESS is ignored when the currency is not PHP', function () {
+test('PAYMENT_SUCCESS is ignored when the verified currency is not PHP', function () {
     $order = mayaOrderWithReference(['total' => 1500]);
 
-    $payload = mayaPaymentSuccessPayload($order, ['currency' => 'USD']);
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS', [
+                'totalAmount' => ['value' => '1500.00', 'currency' => 'USD'],
+            ]),
+            200,
+        ),
+    ]);
 
-    $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
+    $this->postJson('/maya/webhook', mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
 
     expect($order->refresh()->payment_status)->toBe('unpaid');
 });
 
-test('PAYMENT_SUCCESS is ignored when isPaid is false', function () {
+test('PAYMENT_SUCCESS is not confirmed when Maya does not report a successful payment', function () {
     $order = mayaOrderWithReference(['total' => 1500]);
 
-    $payload = mayaPaymentSuccessPayload($order, ['isPaid' => false]);
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PENDING_PAYMENT'),
+            200,
+        ),
+    ]);
 
-    $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
+    $this->postJson('/maya/webhook', mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
+
+    expect($order->refresh()->payment_status)->toBe('unpaid');
+});
+
+test('PAYMENT_SUCCESS is not confirmed when the server-to-server verification cannot be reached', function () {
+    $order = mayaOrderWithReference(['total' => 1500]);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(['errors' => ['message' => 'boom']], 500),
+    ]);
+
+    $this->postJson('/maya/webhook', mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
 
     expect($order->refresh()->payment_status)->toBe('unpaid');
 });
@@ -271,6 +365,13 @@ test('PAYMENT_SUCCESS webhook is idempotent', function () {
     $order = mayaOrderWithReference(['total' => 1500]);
 
     $payload = mayaPaymentSuccessPayload($order);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS'),
+            200,
+        ),
+    ]);
 
     $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
     $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
@@ -282,6 +383,13 @@ test('re-delivered webhook events are recorded once and acked as duplicates', fu
     $order = mayaOrderWithReference(['total' => 1500]);
 
     $payload = mayaPaymentSuccessPayload($order);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS'),
+            200,
+        ),
+    ]);
 
     $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])
         ->assertOk()
@@ -298,6 +406,13 @@ test('re-delivered webhook events are recorded once and acked as duplicates', fu
 
 test('a different event for the same payment id is not treated as a duplicate', function () {
     $order = mayaOrderWithReference(['total' => 1500]);
+
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS'),
+            200,
+        ),
+    ]);
 
     $this->postJson('/maya/webhook', mayaPaymentSuccessPayload($order), ['REMOTE_ADDR' => mayaWebhookIp()])
         ->assertOk()
@@ -327,6 +442,13 @@ test('PAYMENT_SUCCESS sent via the paymentStatus field is processed', function (
     unset($payload['status']);
     $payload['paymentStatus'] = 'PAYMENT_SUCCESS';
 
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS'),
+            200,
+        ),
+    ]);
+
     $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
 
     expect($order->refresh()->payment_status)->toBe('paid');
@@ -337,6 +459,13 @@ test('a Get Checkout shaped webhook (status COMPLETED + paymentStatus) is proces
     $order = mayaOrderWithReference(['user_id' => $user->id, 'total' => 1500]);
     Cart::factory()->create(['user_id' => $user->id]);
 
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS'),
+            200,
+        ),
+    ]);
+
     $this->postJson('/maya/webhook', mayaCheckoutWebhookPayload($order, 'PAYMENT_SUCCESS'), ['REMOTE_ADDR' => mayaWebhookIp()])
         ->assertOk()
         ->assertJson(['status' => 'ok']);
@@ -344,7 +473,7 @@ test('a Get Checkout shaped webhook (status COMPLETED + paymentStatus) is proces
     $order->refresh();
     expect($order->payment_status)->toBe('paid');
     expect($order->payment_method)->toBe('card');
-    expect($order->payment_intent_id)->toBe('cs_test_123');
+    expect($order->payment_intent_id)->toBe($order->checkout_session_id);
     expect(Cart::where('user_id', $user->id)->count())->toBe(0);
 });
 
@@ -363,11 +492,17 @@ test('a Get Checkout shaped expired webhook releases stock and cancels the order
 test('a Get Checkout shaped success webhook is ignored on an amount mismatch', function () {
     $order = mayaOrderWithReference(['total' => 1500]);
 
-    $payload = mayaCheckoutWebhookPayload($order, 'PAYMENT_SUCCESS', [
-        'totalAmount' => ['value' => '1.00', 'currency' => 'PHP'],
+    Http::fake([
+        'pg-sandbox.paymaya.com/checkout/v1/checkouts/*' => Http::response(
+            mayaVerifiedCheckoutResponse($order, 'PAYMENT_SUCCESS', [
+                'totalAmount' => ['value' => '1.00', 'currency' => 'PHP'],
+            ]),
+            200,
+        ),
     ]);
 
-    $this->postJson('/maya/webhook', $payload, ['REMOTE_ADDR' => mayaWebhookIp()])->assertOk();
+    $this->postJson('/maya/webhook', mayaCheckoutWebhookPayload($order, 'PAYMENT_SUCCESS'), ['REMOTE_ADDR' => mayaWebhookIp()])
+        ->assertOk();
 
     expect($order->refresh()->payment_status)->toBe('unpaid');
 });

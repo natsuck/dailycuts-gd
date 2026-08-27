@@ -120,9 +120,9 @@ class OrderPricingService
             return (float) $quote['priceBreakdown']['total'];
         }
 
-        $this->lastShippingSource = 'flat_rate';
+        $this->lastShippingSource = 'fallback_tier';
 
-        return (float) config('shop.shipping.flat_fee', 150);
+        return $this->fallbackShippingFee($dropoffLat, $dropoffLng, $city);
     }
 
     public function subtotal(Collection $items): float
@@ -195,10 +195,7 @@ class OrderPricingService
                 continue;
             }
 
-            $dist = sqrt(
-                pow($branch['lat'] - $cityCoords['lat'], 2) +
-                pow($branch['lng'] - $cityCoords['lng'], 2)
-            );
+            $dist = $this->haversineDistance($branch['lat'], $branch['lng'], $cityCoords['lat'], $cityCoords['lng']);
 
             if ($dist < $minDist) {
                 $minDist = $dist;
@@ -209,23 +206,95 @@ class OrderPricingService
         return $nearest ?? $branches[0] ?? null;
     }
 
+    private function fallbackShippingFee(?float $dropoffLat = null, ?float $dropoffLng = null, ?string $city = null): float
+    {
+        $warehouse = $this->warehouse();
+
+        if ($warehouse && $dropoffLat !== null && $dropoffLng !== null) {
+            $distanceKm = $this->haversineDistance($warehouse['lat'], $warehouse['lng'], $dropoffLat, $dropoffLng);
+
+            $tiers = config('shop.shipping.fallback_tiers', [
+                ['max_km' => 5, 'fee' => 100],
+                ['max_km' => 15, 'fee' => 150],
+                ['max_km' => 30, 'fee' => 200],
+                ['max_km' => PHP_FLOAT_MAX, 'fee' => 250],
+            ]);
+
+            foreach ($tiers as $tier) {
+                if ($distanceKm <= $tier['max_km']) {
+                    return (float) $tier['fee'];
+                }
+            }
+        }
+
+        return (float) config('shop.shipping.flat_fee', 150);
+    }
+
+    public function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadiusKm = 6371;
+
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+
+        $a = sin($dLat / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+            * sin($dLng / 2) ** 2;
+
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadiusKm * $c;
+    }
+
     private function matchCityCoords(string $input): ?array
     {
-        $normalized = strtolower(trim($input));
+        $normalized = $this->normalizeAccent(strtolower(trim($input)));
         $cities = config('shop.coverage_cities', []);
 
         foreach ($cities as $cityName => $coords) {
-            if (strtolower($cityName) === $normalized) {
+            if ($this->normalizeAccent(strtolower($cityName)) === $normalized) {
                 return $coords;
             }
         }
 
-        foreach ($cities as $cityName => $coords) {
-            if (str_contains(strtolower($cityName), $normalized) || str_contains($normalized, strtolower($cityName))) {
-                return $coords;
+        if (mb_strlen($normalized) >= 3) {
+            foreach ($cities as $cityName => $coords) {
+                $normalizedCity = $this->normalizeAccent(strtolower($cityName));
+
+                if (str_contains($normalizedCity, $normalized) || str_contains($normalized, $normalizedCity)) {
+                    return $coords;
+                }
             }
         }
 
         return null;
+    }
+
+    private function normalizeAccent(string $string): string
+    {
+        $transliterated = function_exists('transliterator_transliterate')
+            ? transliterator_transliterate('Any-Latin; Latin-ASCII;', $string)
+            : false;
+
+        if ($transliterated !== false) {
+            return $transliterated;
+        }
+
+        $chars = [
+            'À'=>'A','Á'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','Å'=>'A',
+            'Æ'=>'AE','Ç'=>'C','È'=>'E','É'=>'E','Ê'=>'E','Ë'=>'E',
+            'Ì'=>'I','Í'=>'I','Î'=>'I','Ï'=>'I','Ð'=>'D','Ñ'=>'N',
+            'Ò'=>'O','Ó'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','Ø'=>'O',
+            'Ù'=>'U','Ú'=>'U','Û'=>'U','Ü'=>'U','Ý'=>'Y','Þ'=>'TH',
+            'ß'=>'ss',
+            'à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a',
+            'æ'=>'ae','ç'=>'c','è'=>'e','é'=>'e','ê'=>'e','ë'=>'e',
+            'ì'=>'i','í'=>'i','î'=>'i','ï'=>'i','ð'=>'d','ñ'=>'n',
+            'ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o','ø'=>'o',
+            'ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u','ý'=>'y','þ'=>'th',
+            'ÿ'=>'y',
+        ];
+
+        return strtr($string, $chars);
     }
 }

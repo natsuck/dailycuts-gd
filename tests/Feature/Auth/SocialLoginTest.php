@@ -51,32 +51,32 @@ test('a new user from a provider that does not confirm the email must verify', f
         ->and($user->email_verified_at)->toBeNull();
 });
 
-test('an existing user with a verified email is logged in via a social provider', function () {
+test('an existing user with a verified email is logged in via Google', function () {
     $existing = User::factory()->create(['email' => 'jane@example.com']);
 
-    Socialite::fake('facebook', SocialUser::fake([
-        'id' => 'facebook-456',
+    Socialite::fake('google', SocialUser::fake([
+        'id' => 'google-456',
         'name' => 'Jane Doe',
         'email' => 'jane@example.com',
         'email_verified' => true,
     ]));
 
-    $this->get('/auth/facebook/callback');
+    $this->get('/auth/google/callback');
 
     $this->assertAuthenticatedAs($existing);
     expect(User::where('email', 'jane@example.com')->count())->toBe(1);
 });
 
-test('an existing account cannot be taken over by an unverified provider email', function () {
+test('an existing account cannot be taken over by an unverified Google email', function () {
     $existing = User::factory()->create(['email' => 'jane@example.com']);
 
-    Socialite::fake('facebook', SocialUser::fake([
+    Socialite::fake('google', SocialUser::fake([
         'id' => 'attacker-789',
         'name' => 'Jane Doe',
         'email' => 'jane@example.com',
     ]));
 
-    $this->get('/auth/facebook/callback')
+    $this->get('/auth/google/callback')
         ->assertRedirect(route('login'))
         ->assertSessionHasErrors('social');
 

@@ -12,7 +12,7 @@
 
         <!-- BRAND NAME -->
         <h2 style="color:#ffffff; margin:0; font-size:20px; font-weight:700;">
-            The Daily Cuts by GD
+            The Daily Cuts
         </h2>
 
         <!-- TAGLINE -->

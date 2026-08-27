@@ -18,7 +18,7 @@ class VerificationCodeMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Verify Your Email - The Daily Cut',
+            subject: 'Verify Your Email - The Daily Cuts',
         );
     }
 

@@ -90,17 +90,6 @@
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="md:col-span-2">
-                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">SEARCH ADDRESS</label>
-                <input
-                  id="address-autocomplete"
-                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
-                  placeholder="Start typing your delivery address..."
-                  type="text"
-                  autocomplete="off"
-                >
-                <p class="text-xs text-on-surface-variant mt-1">Tip: Select a suggested address to fill in the fields below automatically.</p>
-              </div>
-              <div class="md:col-span-2">
                 <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">STREET ADDRESS *</label>
                 <input
                   class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('address') border-red-500 @enderror"
@@ -132,54 +121,6 @@
                 @enderror
               </div>
               <div>
-                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">BARANGAY *</label>
-                <input
-                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('barangay') border-red-500 @enderror"
-                  name="barangay"
-                  value="{{ old('barangay') }}"
-                  placeholder="e.g. Barangay San Antonio"
-                  type="text"
-                  required
-                  maxlength="255"
-                  autocomplete="off"
-                >
-                @error('barangay')
-                  <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
-                @enderror
-              </div>
-              <div>
-                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">CITY *</label>
-                <input
-                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('city') border-red-500 @enderror"
-                  name="city"
-                  value="{{ old('city') }}"
-                  placeholder="e.g. Quezon City, Makati, Manila..."
-                  type="text"
-                  required
-                  maxlength="255"
-                  autocomplete="address-level2"
-                >
-                @error('city')
-                  <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
-                @enderror
-              </div>
-              <div>
-                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">REGION *</label>
-                <input
-                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('region') border-red-500 @enderror"
-                  name="region"
-                  value="{{ old('region') }}"
-                  placeholder="e.g. NCR, CALABARZON..."
-                  type="text"
-                  required
-                  maxlength="255"
-                  autocomplete="address-level1"
-                >
-                @error('region')
-                  <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
-                @enderror
-              </div>
-              <div>
                 <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">POSTAL CODE *</label>
                 <input
                   class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('postal') border-red-500 @enderror"
@@ -193,6 +134,65 @@
                   minlength="4"
                 >
                 @error('postal')
+                  <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
+                @enderror
+              </div>
+              <div>
+                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">REGION *</label>
+                <select
+                  id="select-region"
+                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('region') border-red-500 @enderror"
+                  name="region"
+                  required
+                >
+                  <option value="">Select Region</option>
+                </select>
+                @error('region')
+                  <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
+                @enderror
+              </div>
+              <div>
+                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">PROVINCE / DISTRICT *</label>
+                <select
+                  id="select-province"
+                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('province') border-red-500 @enderror"
+                  name="province"
+                  required
+                  disabled
+                >
+                  <option value="">Select Province</option>
+                </select>
+                @error('province')
+                  <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
+                @enderror
+              </div>
+              <div>
+                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">CITY / MUNICIPALITY *</label>
+                <select
+                  id="select-city"
+                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('city') border-red-500 @enderror"
+                  name="city"
+                  required
+                  disabled
+                >
+                  <option value="">Select City</option>
+                </select>
+                @error('city')
+                  <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
+                @enderror
+              </div>
+              <div>
+                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">BARANGAY *</label>
+                <select
+                  id="select-barangay"
+                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('barangay') border-red-500 @enderror"
+                  name="barangay"
+                  required
+                  disabled
+                >
+                  <option value="">Select Barangay</option>
+                </select>
+                @error('barangay')
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
                 @enderror
               </div>
@@ -213,10 +213,6 @@
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
                 @enderror
               </div>
-              <input type="hidden" name="delivery_lat" id="delivery_lat" value="">
-              <input type="hidden" name="delivery_lng" id="delivery_lng" value="">
-              <input type="hidden" name="delivery_place_id" id="delivery_place_id" value="">
-              <input type="hidden" name="formatted_address" id="formatted_address" value="">
             </div>
           </section>
 
@@ -343,29 +339,6 @@
   @endif
 </main>
 
-@php $mapsKey = (string) config('services.google_maps.key'); @endphp
-@if($mapsKey !== '')
-<script>
-  window.__placesApiLoaded = false;
-  window.__placesApiCallbacks = [];
-
-  window.initPlacesAutocomplete = function () {
-    window.__placesApiLoaded = true;
-    window.__placesApiCallbacks.forEach(function (fn) { fn(); });
-    window.__placesApiCallbacks = [];
-  };
-
-  window.onPlacesApiReady = function (fn) {
-    if (window.__placesApiLoaded) {
-      fn();
-    } else {
-      window.__placesApiCallbacks.push(fn);
-    }
-  };
-</script>
-<script src="https://maps.googleapis.com/maps/api/js?key={{ $mapsKey }}&libraries=places&callback=initPlacesAutocomplete" async defer></script>
-@endif
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var form = document.getElementById('checkout-form');
@@ -385,14 +358,19 @@ document.addEventListener('DOMContentLoaded', function() {
   var couponMessage = document.getElementById('coupon-message');
   var discountRow = document.getElementById('discount-row');
   var discountAmount = document.getElementById('discount-amount');
-  var autocompleteInput = document.getElementById('address-autocomplete');
-  var deliveryLatInput = document.getElementById('delivery_lat');
-  var deliveryLngInput = document.getElementById('delivery_lng');
-  var deliveryPlaceIdInput = document.getElementById('delivery_place_id');
-  var formattedAddressInput = document.getElementById('formatted_address');
   var shippingError = document.getElementById('shipping-error');
   var shippingRefresh = document.getElementById('shipping-refresh');
   var debounceTimer = null;
+
+  var regionSelect = document.getElementById('select-region');
+  var provinceSelect = document.getElementById('select-province');
+  var citySelect = document.getElementById('select-city');
+  var barangaySelect = document.getElementById('select-barangay');
+
+  var psgcRegions = [];
+  var psgcProvinces = [];
+  var psgcCities = [];
+  var psgcBarangays = [];
 
   var state = {
     subtotal: {{ $total }},
@@ -456,23 +434,18 @@ document.addEventListener('DOMContentLoaded', function() {
         showCouponMessage('Please enter a coupon code.', true);
         return;
       }
-
       couponApplyBtn.disabled = true;
-
       fetch('{{ route("checkout.coupon") }}', {
         method: 'POST',
         headers: csrfHeaders,
         body: JSON.stringify({ code: code })
       })
-      .then(function(r) {
-        return r.json().then(function(d) { return { ok: r.ok, data: d }; });
-      })
+      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
       .then(function(result) {
         if (!result.ok) {
           showCouponMessage(result.data.message || 'Could not apply that coupon.', true);
           return;
         }
-
         state.discount = parseFloat(result.data.discount || 0);
         state.freeShipping = !!result.data.freeShipping;
         couponInput.value = '';
@@ -488,26 +461,16 @@ document.addEventListener('DOMContentLoaded', function() {
       .catch(function() {
         showCouponMessage('Could not apply that coupon. Please try again.', true);
       })
-      .finally(function() {
-        couponApplyBtn.disabled = false;
-      });
+      .finally(function() { couponApplyBtn.disabled = false; });
     });
   }
 
   if (couponRemoveBtn) {
     couponRemoveBtn.addEventListener('click', function() {
-      fetch('{{ route("checkout.couponRemove") }}', {
-        method: 'DELETE',
-        headers: csrfHeaders
-      })
-      .then(function(r) {
-        return r.json().then(function(d) { return { ok: r.ok, data: d }; });
-      })
+      fetch('{{ route("checkout.couponRemove") }}', { method: 'DELETE', headers: csrfHeaders })
+      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
       .then(function(result) {
-        if (!result.ok) {
-          return;
-        }
-
+        if (!result.ok) return;
         state.discount = parseFloat(result.data.discount || 0);
         state.freeShipping = !!result.data.freeShipping;
         couponEntry.classList.remove('hidden');
@@ -521,21 +484,15 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  var addressInputs = [
-    document.querySelector('input[name="address"]'),
-    document.querySelector('input[name="address2"]'),
-    document.querySelector('input[name="barangay"]'),
-    document.querySelector('input[name="city"]'),
-    document.querySelector('input[name="region"]'),
-    document.querySelector('input[name="postal"]')
-  ].filter(Boolean);
-
-  var requiredFieldNames = ['email', 'first_name', 'last_name', 'address', 'barangay', 'city', 'region', 'postal', 'phone'];
-
   function requiredFieldsFilled() {
-    return requiredFieldNames.every(function(name) {
-      var input = document.querySelector('input[name="' + name + '"]');
-      return input && input.value.trim() !== '';
+    var textFields = ['email', 'first_name', 'last_name', 'address', 'postal', 'phone'];
+    var selects = ['select-region', 'select-province', 'select-city', 'select-barangay'];
+    return textFields.every(function(name) {
+      var el = document.querySelector('[name="' + name + '"]');
+      return el && el.value.trim() !== '';
+    }) && selects.every(function(id) {
+      var el = document.getElementById(id);
+      return el && el.value !== '';
     });
   }
 
@@ -552,25 +509,13 @@ document.addEventListener('DOMContentLoaded', function() {
     clearTimeout(debounceTimer);
     var run = function() {
       var params = new URLSearchParams();
-      ['address', 'address2', 'barangay', 'city', 'region', 'postal'].forEach(function(name) {
-        var input = document.querySelector('input[name="' + name + '"]');
-        if (input && input.value) {
-          params.append(name, input.value);
-        }
+      ['address', 'address2', 'postal', 'phone'].forEach(function(name) {
+        var el = document.querySelector('[name="' + name + '"]');
+        if (el && el.value) params.append(name, el.value);
       });
-
-      if (deliveryLatInput && deliveryLatInput.value) {
-        params.append('delivery_lat', deliveryLatInput.value);
-      }
-      if (deliveryLngInput && deliveryLngInput.value) {
-        params.append('delivery_lng', deliveryLngInput.value);
-      }
-      if (deliveryPlaceIdInput && deliveryPlaceIdInput.value) {
-        params.append('delivery_place_id', deliveryPlaceIdInput.value);
-      }
-      if (formattedAddressInput && formattedAddressInput.value) {
-        params.append('formatted_address', formattedAddressInput.value);
-      }
+      params.append('barangay', barangaySelect.options[barangaySelect.selectedIndex].text);
+      params.append('city', citySelect.options[citySelect.selectedIndex].text);
+      params.append('region', regionSelect.options[regionSelect.selectedIndex].text);
 
       shippingLoading.classList.remove('hidden');
       shippingFeeDisplay.classList.add('opacity-50');
@@ -608,100 +553,107 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     };
 
-    if (immediate) {
-      run();
-    } else {
-      debounceTimer = setTimeout(run, 600);
-    }
+    if (immediate) { run(); } else { debounceTimer = setTimeout(run, 600); }
   }
 
-  function setAddressInput(name, value) {
-    var input = document.querySelector('input[name="' + name + '"]');
-    if (input) {
-      input.value = value || '';
-    }
-  }
-
-  function initAutocompleteWidget() {
-    if (!autocompleteInput || !window.google || !google.maps.places) {
-      return;
-    }
-
-    var autocomplete = new google.maps.places.Autocomplete(autocompleteInput, {
-      componentRestrictions: { country: 'PH' },
-      fields: ['address_components', 'formatted_address', 'geometry'],
-      types: ['address']
+  function populateSelect(select, items, valueKey, labelKey, placeholder) {
+    select.innerHTML = '<option value="">' + placeholder + '</option>';
+    items.forEach(function(item) {
+      var opt = document.createElement('option');
+      opt.value = item[valueKey];
+      opt.textContent = item[labelKey];
+      select.appendChild(opt);
     });
+    select.disabled = false;
+  }
 
-    autocomplete.addListener('place_changed', function() {
-      var place = autocomplete.getPlace();
+  function resetSelect(select, placeholder) {
+    select.innerHTML = '<option value="">' + placeholder + '</option>';
+    select.disabled = true;
+  }
 
-      if (!place || !place.geometry) {
-        return;
-      }
-
-      var components = {};
-      (place.address_components || []).forEach(function(component) {
-        (component.types || []).forEach(function(type) {
-          if (!components[type]) {
-            components[type] = component.long_name;
-          }
-        });
+  function loadRegions() {
+    return fetch('/data/philippines/region.json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        psgcRegions = data;
+        populateSelect(regionSelect, data, 'region_code', 'region_name', 'Select Region');
       });
-
-      var street = (components.street_number ? components.street_number + ' ' : '') + (components.route || '');
-      setAddressInput('address', street.trim());
-      setAddressInput('address2', '');
-      setAddressInput('barangay', components.sublocality_level_1 || components.neighborhood || components.sublocality_level_2 || '');
-      setAddressInput('city', components.locality || components.administrative_area_level_2 || '');
-      setAddressInput('region', components.administrative_area_level_1 || '');
-      setAddressInput('postal', components.postal_code || '');
-
-      deliveryLatInput.value = place.geometry.location.lat();
-      deliveryLngInput.value = place.geometry.location.lng();
-      deliveryPlaceIdInput.value = place.place_id || '';
-      formattedAddressInput.value = place.formatted_address || '';
-
-      estimateShipping();
-    });
   }
 
-  if (typeof window.onPlacesApiReady === 'function') {
-    window.onPlacesApiReady(initAutocompleteWidget);
+  function loadProvinces(regionCode) {
+    return fetch('/data/philippines/province.json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        psgcProvinces = data;
+        var filtered = data.filter(function(p) { return p.region_code === regionCode; });
+        filtered.sort(function(a, b) { return a.province_name.localeCompare(b.province_name); });
+        populateSelect(provinceSelect, filtered, 'province_code', 'province_name', 'Select Province');
+      });
   }
 
-  addressInputs.forEach(function(input) {
-    input.addEventListener('input', function() {
-      if (deliveryLatInput) {
-        deliveryLatInput.value = '';
-      }
-      if (deliveryLngInput) {
-        deliveryLngInput.value = '';
-      }
-      if (deliveryPlaceIdInput) {
-        deliveryPlaceIdInput.value = '';
-      }
-      if (formattedAddressInput) {
-        formattedAddressInput.value = '';
-      }
-      estimateShipping();
-    });
+  function loadCities(provinceCode) {
+    return fetch('/data/philippines/city.json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        psgcCities = data;
+        var filtered = data.filter(function(c) { return c.province_code === provinceCode; });
+        filtered.sort(function(a, b) { return a.city_name.localeCompare(b.city_name); });
+        populateSelect(citySelect, filtered, 'city_code', 'city_name', 'Select City');
+      });
+  }
+
+  function loadBarangays(cityCode) {
+    return fetch('/data/philippines/barangay.json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        psgcBarangays = data;
+        var filtered = data.filter(function(b) { return b.city_code === cityCode; });
+        filtered.sort(function(a, b) { return a.brgy_name.localeCompare(b.brgy_name); });
+        populateSelect(barangaySelect, filtered, 'brgy_code', 'brgy_name', 'Select Barangay');
+      });
+  }
+
+  regionSelect.addEventListener('change', function() {
+    var code = this.value;
+    resetSelect(provinceSelect, 'Select Province');
+    resetSelect(citySelect, 'Select City');
+    resetSelect(barangaySelect, 'Select Barangay');
+    if (!code) { estimateShipping(); return; }
+    loadProvinces(code).then(estimateShipping);
   });
 
-  ['email', 'first_name', 'last_name', 'phone'].forEach(function(name) {
-    var input = document.querySelector('input[name="' + name + '"]');
-    if (input) {
-      input.addEventListener('input', estimateShipping);
-    }
+  provinceSelect.addEventListener('change', function() {
+    var code = this.value;
+    resetSelect(citySelect, 'Select City');
+    resetSelect(barangaySelect, 'Select Barangay');
+    if (!code) { estimateShipping(); return; }
+    loadCities(code).then(estimateShipping);
+  });
+
+  citySelect.addEventListener('change', function() {
+    var code = this.value;
+    resetSelect(barangaySelect, 'Select Barangay');
+    if (!code) { estimateShipping(); return; }
+    loadBarangays(code).then(estimateShipping);
+  });
+
+  barangaySelect.addEventListener('change', function() {
+    estimateShipping();
+  });
+
+  ['address', 'address2', 'postal', 'phone'].forEach(function(name) {
+    var el = document.querySelector('[name="' + name + '"]');
+    if (el) el.addEventListener('input', estimateShipping);
   });
 
   if (shippingRefresh) {
-    shippingRefresh.addEventListener('click', function() {
-      estimateShipping(true);
-    });
+    shippingRefresh.addEventListener('click', function() { estimateShipping(true); });
   }
 
-  renderTotals();
+  loadRegions().then(function() {
+    renderTotals();
+  });
 });
 </script>
 

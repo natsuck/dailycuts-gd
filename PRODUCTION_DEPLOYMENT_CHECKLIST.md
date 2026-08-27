@@ -1,8 +1,8 @@
 # 🚀 Production Deployment Checklist
 
-**Project:** The Daily Cuts by GD  
-**Date:** 2026-08-25  
-**Status:** Phase 2 & 3 Pending  
+**Project:** The Daily Cuts  
+**Date:** 2026-08-27  
+**Status:** In progress — VPS + Cloudflare (Full strict) + supervisor; waiting on Maya production approval (BIR 2303).
 
 ---
 
@@ -65,7 +65,7 @@ php artisan tinker
 # Check these values:
 config('app.env')           # Should be: 'production'
 config('app.debug')         # Should be: false
-config('mail.from.name')    # Should be: 'The Daily Cuts by GD'
+config('mail.from.name')    # Should be: 'The Daily Cuts'
 config('queue.default')     # Should be: 'database' (or 'redis' for scale)
 config('cache.default')     # Should be: 'database' (or 'redis' for scale)
 config('session.secure')    # Should be: true
@@ -73,21 +73,19 @@ config('session.encrypt')   # Should be: true
 config('auth.passwords.users.expire') # Should be set
 ```
 
-**Required `.env` values for production:**
+**Required `.env` values for production (set on the VPS — secret values are
+redacted from this repo and never committed):**
 - [x] `APP_ENV=production` - Correct
 - [x] `APP_DEBUG=false` - Correct  
-- [x] `APP_URL=https://thedailycuts.com` - Correct
-- [ ] `DB_PASSWORD` - Update with rotated password
-- [ ] `MAIL_PASSWORD` - Update with new Gmail App Password
-- [ ] `MAYA_PUBLIC_KEY` - Set to production key (not sandbox)
-- [ ] `MAYA_SECRET_KEY` - Set to production key (not sandbox)
-- [ ] `MAYA_MODE` - Change from `sandbox` to `production`
-- [ ] `MAYA_WEBHOOK_IPS` - Set to production IP addresses
-- [ ] `LALAMOVE_API_KEY` - Set to production key
-- [ ] `LALAMOVE_API_SECRET` - Set to production key
-- [ ] `LALAMOVE_SANDBOX` - Change to `false` for production
-- [ ] `GOOGLE_MAPS_API_KEY` - Verify production key
-- [ ] `TRUSTED_PROXIES` - Configure if behind load balancer/CDN
+- [ ] `APP_URL=https://thedailycuts.com` - Set to real domain (currently ngrok)
+- [ ] `DB_USERNAME`/`DB_PASSWORD` - Use dedicated `app_user`, rotated password
+- [ ] `MAIL_PASSWORD` - Rotated Gmail App Password
+- [ ] `MAYA_PUBLIC_KEY` / `MAYA_SECRET_KEY` - sandbox now; production at go-live (BIR)
+- [ ] `MAYA_MODE` - keep `sandbox` until Maya production approved
+- [ ] `MAYA_WEBHOOK_IPS` - auto-defaults to production IPs at switch-over
+- [ ] `LALAMOVE_API_KEY` / `LALAMOVE_API_SECRET` - rotated live keys
+- [ ] `GOOGLE_MAPS_API_KEY` - rotated + domain-restricted key
+- [ ] `TRUSTED_PROXIES` - Cloudflare IP ranges (see deploy/README.md)
 
 ---
 
@@ -97,11 +95,15 @@ config('auth.passwords.users.expire') # Should be set
 **Portal:** https://dashboard.maya.ph  
 **Current Settings:**
 ```env
-MAYA_PUBLIC_KEY=pk-iaPw9sVcpbSkkeIPupcvuopNpczxEN1klbvTPXCYffm
-MAYA_SECRET_KEY=sk-s7RmAxH5jpU6CLM5dHyvpBFtl6FH1IhORbdzmY8dowR
-MAYA_MODE=sandbox
-MAYA_WEBHOOK_IPS=CONFIGURE_THIS
+# Values redacted from this checklist — secrets never belong in the repo.
+MAYA_MODE=sandbox        # switch to production at go-live (BIR 2303)
+MAYA_PUBLIC_KEY=<sandbox key on VPS>
+MAYA_SECRET_KEY=<sandbox key on VPS>
+MAYA_WEBHOOK_IPS=        # auto-defaults to production IPs when MAYA_MODE=production
 ```
+**Action (READ-ONLY until BIR 2303 clears):** The repo's deployment plan is to
+deploy now in **sandbox** mode behind maintenance mode, then do a **config-only
+flip** to production when Maya business approval arrives. See `deploy/README.md`.
 
 **To update to production:**
 1. Log into Maya Dashboard
@@ -125,9 +127,10 @@ config('maya.mode')          # Should be 'production'
 **Portal:** https://lalamove.com/developer  
 **Current Settings:**
 ```env
-LALAMOVE_API_KEY=pk_test_d6bdd15d6ecf6eebb644f85246fd11b2
-LALAMOVE_API_SECRET=sk_test_vwWoJ9oGoYVJFJyBQ/Eg0AsreyiiojytecdFyIZY9RBTqHBnh8cOYlEaIuM0f13t
-LALAMOVE_SANDBOX=true
+# Values redacted from this checklist — secrets never belong in the repo.
+LALAMOVE_API_KEY=<live key on VPS>
+LALAMOVE_API_SECRET=<live secret on VPS>
+LALAMOVE_SANDBOX=false
 ```
 
 **To update to production:**
@@ -152,11 +155,10 @@ config('lalamove.sandbox')   # Should be false
 
 **Scenario 1: Behind Cloudflare CDN**
 ```env
-# Set in .env:
-TRUSTED_PROXIES=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/12,172.64.0.0/13,131.0.72.0/22
-
-# Or use wildcard (less secure but works):
-TRUSTED_PROXIES=*
+# Set in .env to Cloudflare's published IPv4 ranges (see deploy/README.md).
+# Do NOT use "*" — that lets anyone spoof X-Forwarded-For (a webhook forgery
+# risk for the Maya IP allowlist).
+TRUSTED_PROXIES=<Cloudflare IP ranges from https://www.cloudflare.com/ips/>
 ```
 
 **Scenario 2: Behind AWS Application Load Balancer**
@@ -183,16 +185,15 @@ request()->ip()  # Should be webhook sender's IP, not proxy IP
 ## ⏳ Phase 3: Dependency & Build Validation
 
 ### Step 1: Check for Dependency Vulnerabilities  
-**Status:** 🔴 NOT DONE  
+**Status:** ✅ DONE (2026-08-27)  
 **Command:**
 
 ```bash
 # Scan composer dependencies for CVEs:
 composer audit
-
-# Expected output:
-# Found 0 vulnerabilities (or list of vulnerabilities to fix)
 ```
+
+**Result:** No security vulnerability advisories found (0 CVEs).
 
 **If vulnerabilities found:**
 ```bash
@@ -224,14 +225,15 @@ ls -la public/build/
 ---
 
 ### Step 3: Cache Configuration
-**Status:** 🔴 NOT DONE  
+**Status:** 🔴 Run at deploy (done now that route closures were converted)  
 **Commands:**
 
 ```bash
 # Cache configuration files (improves performance):
 php artisan config:cache
 
-# Cache routes (improves performance):
+# Cache routes (improves performance). Works now — all route closures were
+# converted to controller methods so routes are serializable:
 php artisan route:cache
 
 # Optimize autoloader (improves performance):
@@ -256,26 +258,22 @@ php artisan serve --host=127.0.0.1 --port=8000
 
 ### Step 2: Test Payment Gateway Webhook
 **Maya Payment Webhook Test:**
-```bash
-# Simulate incoming webhook from Maya:
-curl -X POST http://localhost:8000/api/webhooks/maya \
-  -H "Content-Type: application/json" \
-  -H "X-Forwarded-For: 13.229.160.234" \
-  -d '{
-    "payment_id":"PAY-123",
-    "event":"payment_success",
-    "status":"AUTHORIZED",
-    "timestamp":"2026-08-25T10:00:00Z"
-  }'
+Maya webhooks are **not signed**. Acceptance requires BOTH:
+1. The request IP must be in `config('maya.webhook_ips')` (via `request()->ip()`
+   after trusted-proxy resolution — behind Cloudflare this must resolve to
+   Maya's IP, not Cloudflare's edge).
+2. For `PAYMENT_SUCCESS`, the order is only confirmed after a **server-to-server
+   Get Checkout** call to Maya confirms the payment and the amount/currency match.
 
-# Expected response: 200 OK with webhook processed message
-# Check logs: storage/logs/laravel.log
-```
+The best end-to-end test is a real **sandbox** checkout through Cloudflare
+(which exercises the full wiring). A raw `curl` `POST /maya/webhook` will
+acknowledge the payload but the order will **not** be confirmed unless Maya's
+API reports the payment as successful.
 
 **Lalamove Webhook Test:**
 ```bash
-# Note: Lalamove webhooks require valid HMAC signature
-# Run from Lalamove test console or contact support for test webhook
+# Lalamove webhooks require a valid HMAC signature (raw JSON body + shared secret).
+# Run from Lalamove test console or contact support for a test webhook.
 ```
 
 ---
@@ -311,16 +309,16 @@ Mail::raw('Test email', function ($message) {
 ### Before Going Live:
 
 1. [ ] All Phase 2 steps completed
-2. [ ] All Phase 3 validation passed
+2. [ ] **Supervisor running both programs:** `laravel-queue` AND `laravel-schedule` (see `deploy/supervisor/`). Without these, queued emails/Lalamove dispatch and the unpaid-order expiry never run.
 3. [ ] All Phase 4 tests passed
 4. [ ] Database backed up
 5. [ ] Rollback plan documented
 6. [ ] Uptime monitoring configured
-7. [ ] Error monitoring (Sentry/Rollbar) configured
-8. [ ] Log aggregation (CloudWatch/Datadog) configured
-9. [ ] SSL certificate verified (HTTPS working)
-10. [ ] Rate limiting tested
-11. [ ] Security headers verified (check in browser DevTools)
+7. [ ] Error monitoring (Sentry/Rollbar) configured — optional, not yet wired
+8. [ ] SSL certificate verified (HTTPS working) — Cloudflare Full (strict) + origin cert
+9. [ ] Rate limiting tested
+10. [ ] Security headers verified (check in browser DevTools) — CSP is Report-Only
+11. [ ] `public/hot` removed on deploy (serve from `public/build`)
 
 ### Deployment Commands:
 ```bash
@@ -329,22 +327,28 @@ Mail::raw('Test email', function ($message) {
 # 1. Pull latest code:
 git pull origin main
 
-# 2. Install dependencies:
+# 2. Install dependencies (prod only, no dev tools like tinker):
 composer install --optimize-autoloader --no-dev
 
 # 3. Run migrations:
 php artisan migrate --force
 
-# 4. Cache configuration:
+# 4. Build assets + remove Vite dev marker:
+rm -f public/hot
+npm ci && npm run build
+
+# 5. Cache configuration and routes:
 php artisan config:cache
 php artisan route:cache
+php artisan storage:link
 
-# 5. Restart queue worker (if using supervisor):
-supervisorctl restart laravel-queue
+# 6. Restart supervisord programs (queue + scheduler):
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl restart all
 
-# 6. Verify deployment:
-php artisan tinker
-# Run: config('app.env') # Should show 'production'
+# 7. Under-wraps until Maya production is ready:
+php artisan down
 ```
 
 ---
@@ -395,5 +399,5 @@ supervisorctl restart all
 
 ---
 
-**Last Updated:** 2026-08-25  
-**Next Review:** Before each deployment
+**Last Updated:** 2026-08-27  
+**Next Review:** At each deployment

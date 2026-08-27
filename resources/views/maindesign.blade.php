@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>The Daily Cuts by GD</title>
+  <title>The Daily Cuts</title>
   <link rel="shortcut icon" href="{{ asset('frontend/images/img3.jpg') }}">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -258,21 +258,30 @@
         <h4 class="font-headline-sm text-headline-sm mb-6 text-on-surface">Support</h4>
         <nav class="flex flex-col gap-4">
           <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="tel:+631234567891">+63 1234567891</a>
-          <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="mailto:demo@gmail.com">demo@gmail.com</a>
+          <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="mailto:tdc@thedailycuts.com">tdc@thedailycuts.com</a>
           <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="{{ route('store.locations') }}">Find Our Stores</a>
         </nav>
       </div>
       <div class="col-span-1">
         <h4 class="font-headline-sm text-headline-sm mb-6 text-on-surface">Newsletter</h4>
         <p class="text-on-secondary-container font-body-md mb-4">Join our culinary club for exclusive cuts.</p>
-        <div class="flex flex-col gap-2">
-          <input class="bg-surface border-outline-variant rounded-lg p-3 text-body-md focus:ring-primary focus:border-primary" placeholder="Your email address" type="email">
-          <button class="bg-primary text-white font-bold py-3 rounded-lg uppercase tracking-widest text-label-caps active:opacity-80 transition-all">Subscribe</button>
-        </div>
+        @if(session('newsletterMessage'))
+          <p class="text-primary font-body-md text-sm mb-4">{{ session('newsletterMessage') }}</p>
+        @endif
+        <form action="{{ route('newsletter.subscribe') }}" method="POST" class="flex flex-col gap-2">
+          @csrf
+          <input name="email" type="email" required placeholder="Your email address"
+                 class="bg-surface border-outline-variant rounded-lg p-3 text-body-md focus:ring-primary focus:border-primary"
+                 aria-label="Email address">
+          <button type="submit" class="bg-primary text-white font-bold py-3 rounded-lg uppercase tracking-widest text-label-caps active:opacity-80 transition-all">Subscribe</button>
+          @error('email')
+            <small class="text-red-500 text-sm">{{ $message }}</small>
+          @enderror
+        </form>
       </div>
     </div>
     <div class="max-w-container-max mx-auto px-4 md:px-margin-desktop py-8 border-t border-outline-variant/30 flex flex-col md:flex-row justify-between items-center gap-4">
-      <span class="text-on-secondary-container font-body-md text-center md:text-left text-sm">&copy; {{ date('Y') }} The Daily Cuts by GD. Artisanal butchery meets digital excellence.</span>
+      <span class="text-on-secondary-container font-body-md text-center md:text-left text-sm">&copy; {{ date('Y') }} The Daily Cuts. Artisanal butchery meets digital excellence.</span>
       <div class="flex gap-6">
         <a href="{{ route('privacy.policy') }}" class="text-on-secondary-container hover:text-primary text-sm font-body-md transition-colors">Privacy Policy</a>
         <a href="{{ route('terms.conditions') }}" class="text-on-secondary-container hover:text-primary text-sm font-body-md transition-colors">Terms &amp; Conditions</a>

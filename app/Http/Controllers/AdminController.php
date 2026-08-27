@@ -177,6 +177,10 @@ class AdminController extends Controller
         $product->product_description = $validated['product_description'];
         $product->product_category = $validated['product_category'];
         $product->product_type = $validated['product_type'] ?? null;
+        $product->fresh_storage = $validated['fresh_storage'] ?? null;
+        $product->fresh_prep = $validated['fresh_prep'] ?? null;
+        $product->fresh_delivery = $validated['fresh_delivery'] ?? null;
+        $product->fresh_best_for = $validated['fresh_best_for'] ?? null;
         $product->product_quantity = $validated['product_quantity'] ?? 0;
         $product->reorder_level = $validated['reorder_level'] ?? null;
         $product->expiry_date = $validated['expiry_date'] ?? null;
@@ -233,6 +237,10 @@ class AdminController extends Controller
         $product->product_description = $validated['product_description'];
         $product->product_category = $validated['product_category'];
         $product->product_type = $validated['product_type'] ?? $product->product_type;
+        $product->fresh_storage = $validated['fresh_storage'] ?? $product->fresh_storage;
+        $product->fresh_prep = $validated['fresh_prep'] ?? $product->fresh_prep;
+        $product->fresh_delivery = $validated['fresh_delivery'] ?? $product->fresh_delivery;
+        $product->fresh_best_for = $validated['fresh_best_for'] ?? $product->fresh_best_for;
         $product->product_quantity = $validated['product_quantity'] ?? $product->product_quantity;
         $product->reorder_level = $validated['reorder_level'] ?? $product->reorder_level;
         $product->expiry_date = $validated['expiry_date'] ?? $product->expiry_date;
@@ -322,12 +330,12 @@ class AdminController extends Controller
         $order->status = $target;
         $order->save();
 
-        if ($order->status === 'shipped') {
-            Mail::to($order->user->email)->send(new OrderShippedMail($order));
+        if ($order->status === 'shipped' && $order->user) {
+            Mail::to($order->user->email)->queue(new OrderShippedMail($order));
         }
 
-        if ($order->status === 'delivered') {
-            Mail::to($order->user->email)->send(new OrderDeliveredMail($order));
+        if ($order->status === 'delivered' && $order->user) {
+            Mail::to($order->user->email)->queue(new OrderDeliveredMail($order));
         }
 
         return redirect()->back()->with('success', 'Order status updated!');
@@ -424,6 +432,10 @@ class AdminController extends Controller
             'categories' => ['nullable', 'array'],
             'categories.*' => ['integer', 'exists:categories,id'],
             'product_type' => ['nullable', 'string', 'in:fresh,frozen,pantry,produce'],
+            'fresh_storage' => ['nullable', 'string', 'max:255'],
+            'fresh_prep' => ['nullable', 'string', 'max:255'],
+            'fresh_delivery' => ['nullable', 'string', 'max:255'],
+            'fresh_best_for' => ['nullable', 'string', 'max:255'],
             'pairings' => ['nullable', 'array'],
             'pairings.*' => ['integer', 'exists:products,id'],
             'product_image' => [$isUpdate ? 'nullable' : 'required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],

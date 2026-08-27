@@ -82,6 +82,39 @@
                     </div>
 
                     <div class="card mb-4">
+                        <div class="card-header"><h5 class="card-title mb-0">Freshness Notes</h5></div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">Shown in the &quot;Freshness Notes&quot; section on the product detail page. Leave any field blank to fall back to the generic default.</p>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label><strong>Storage</strong></label>
+                                        <input type="text" name="fresh_storage" class="form-control" placeholder="e.g. Keep chilled" value="{{ old('fresh_storage', $product->fresh_storage) }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label><strong>Prep</strong></label>
+                                        <input type="text" name="fresh_prep" class="form-control" placeholder="e.g. Cook thoroughly" value="{{ old('fresh_prep', $product->fresh_prep) }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label><strong>Delivery</strong></label>
+                                        <input type="text" name="fresh_delivery" class="form-control" placeholder="e.g. Temperature-controlled" value="{{ old('fresh_delivery', $product->fresh_delivery) }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3 mb-md-0">
+                                        <label><strong>Best For</strong></label>
+                                        <input type="text" name="fresh_best_for" class="form-control" placeholder="e.g. Daily meals" value="{{ old('fresh_best_for', $product->fresh_best_for) }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
                         <div class="card-header"><h5 class="card-title mb-0">Stock & Pricing</h5></div>
                         <div class="card-body">
                             <div class="row">

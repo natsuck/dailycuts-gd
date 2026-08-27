@@ -1,6 +1,6 @@
 # Production Deployment Checklist
 
-Use this checklist before publishing The Daily Cuts by GD.
+Use this checklist before publishing The Daily Cuts.
 
 Domain: `thedailycuts.com`
 
@@ -58,7 +58,6 @@ ufw enable
 ### Social Login — configure when ready
 
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI=https://thedailycuts.com/auth/google/callback`
-- `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`, `FACEBOOK_REDIRECT_URI=https://thedailycuts.com/auth/facebook/callback`
 
 ## 3. Deploy Application
 

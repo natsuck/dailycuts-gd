@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\SaleBanner;
+use App\Providers\AppServiceProvider;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -43,6 +45,8 @@ class AdminSaleBannerController extends Controller
 
         SaleBanner::create($validated);
 
+        $this->forgetBannerCache();
+
         return redirect()
             ->route('admin.sale-banners.index')
             ->with('success', 'Sale banner created successfully.');
@@ -69,6 +73,8 @@ class AdminSaleBannerController extends Controller
 
         $saleBanner->update($validated);
 
+        $this->forgetBannerCache();
+
         return redirect()
             ->route('admin.sale-banners.index')
             ->with('success', 'Sale banner updated successfully.');
@@ -78,6 +84,8 @@ class AdminSaleBannerController extends Controller
     {
         $this->deleteImage($saleBanner);
         $saleBanner->delete();
+
+        $this->forgetBannerCache();
 
         return redirect()
             ->route('admin.sale-banners.index')
@@ -123,5 +131,11 @@ class AdminSaleBannerController extends Controller
         if (is_file($imagePath)) {
             unlink($imagePath);
         }
+    }
+
+    protected function forgetBannerCache(): void
+    {
+        Cache::forget(AppServiceProvider::SALE_BANNERS_CACHE_KEY);
+        Cache::forget(AppServiceProvider::SALE_BANNERS_CACHE_KEY.'.ticker');
     }
 }
