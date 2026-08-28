@@ -128,6 +128,7 @@ class LalamoveService
         $timestamp = (string) (int) (microtime(true) * 1000);
         $bodyJson = $body === null ? '' : json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $signature = $this->generateSignature($timestamp, $method, $path, $bodyJson);
+        $requestId = (string) \Illuminate\Support\Str::uuid();
 
         $maxAttempts = 3; // initial request + 2 retries for temporary failures
         $backoffMs = 250;
@@ -149,6 +150,7 @@ class LalamoveService
                     'Content-Type' => 'application/json; charset=utf-8',
                     'Accept' => 'application/json',
                     'MARKET' => $this->market,
+                    'Request-ID' => $requestId,
                 ]);
 
                 if ($body === null) {

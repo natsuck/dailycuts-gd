@@ -387,3 +387,18 @@ test('a repeated COMPLETED webhook does not queue the delivered email twice', fu
 
     Mail::assertQueued(OrderDeliveredMail::class, 1);
 });
+
+test('permissive mode returns 200 to an unauthenticated ping instead of 401', function () {
+    config(['services.lalamove.webhook_permissive' => true]);
+
+    $this->postJson('/lalamove/webhook', ['eventName' => 'ORDER_STATUS_CHANGED', 'data' => ['orderId' => 'nope']])
+        ->assertOk()
+        ->assertJson(['status' => 'ignored']);
+});
+
+test('strict mode still rejects when permissive is false', function () {
+    config(['services.lalamove.webhook_permissive' => false]);
+
+    $this->postJson('/lalamove/webhook', ['eventName' => 'ORDER_STATUS_CHANGED', 'data' => ['orderId' => 'nope']])
+        ->assertStatus(401);
+});

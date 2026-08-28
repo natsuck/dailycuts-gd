@@ -41,6 +41,7 @@ return [
         'market' => env('LALAMOVE_MARKET', 'PH'),
         'sandbox' => (bool) env('LALAMOVE_SANDBOX', true),
         'webhook_url' => env('LALAMOVE_WEBHOOK_URL'),
+        'webhook_permissive' => (bool) env('LALAMOVE_WEBHOOK_PERMISSIVE', false),
     ],
 
     'google' => [

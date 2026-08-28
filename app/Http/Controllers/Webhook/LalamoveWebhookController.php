@@ -19,7 +19,12 @@ class LalamoveWebhookController extends Controller
         $payloadRaw = $request->getContent();
         $payload = $request->json()->all();
 
-        $this->verifyPayload($request, $payloadRaw, $payload);
+        if (! $this->verifyPayload($request, $payloadRaw, $payload)) {
+            // Unverified request. In strict mode we already aborted with 401.
+            // In permissive (capture) mode we return a 200 so Lalamove accepts
+            // the registration / validation ping while we learn its real format.
+            return response()->json(['status' => 'ignored']);
+        }
 
         $eventName = $payload['eventName'] ?? null;
         $data = $payload['data'] ?? [];
@@ -143,39 +148,56 @@ class LalamoveWebhookController extends Controller
         Mail::to($user->email)->queue(new $mailableClass($order));
     }
 
-    protected function verifyPayload(Request $request, string $payloadRaw, array $payload): void
+    protected function verifyPayload(Request $request, string $payloadRaw, array $payload): bool
     {
+        $failureReason = null;
         $apiKey = $payload['apiKey'] ?? null;
 
         if ($apiKey === null || ! hash_equals((string) config('services.lalamove.key', ''), (string) $apiKey)) {
-            Log::warning('Rejected Lalamove webhook due to apiKey mismatch.');
-
-            abort(401, 'Invalid Lalamove webhook signature.');
+            $failureReason = 'apiKey mismatch';
         }
 
         $secret = (string) config('services.lalamove.secret', '');
 
         if ($secret === '') {
-            Log::warning('Rejected Lalamove webhook because no API secret is configured.');
-
-            abort(401, 'Invalid Lalamove webhook signature.');
+            $failureReason = 'no API secret configured';
         }
 
         $providedSignature = $request->header('X-Lalamove-Signature', '');
 
         if ($providedSignature === '') {
-            Log::warning('Rejected Lalamove webhook due to a missing signature header.');
-
-            abort(401, 'Invalid Lalamove webhook signature.');
+            $failureReason ??= 'missing signature header';
         }
 
-        $path = $request->getPathInfo();
-        $computedSignature = base64_encode(hash_hmac('sha256', $payloadRaw.$path, $secret, true));
+        if ($failureReason === null) {
+            $path = $request->getPathInfo();
+            $computedSignature = base64_encode(hash_hmac('sha256', $payloadRaw.$path, $secret, true));
 
-        if (! hash_equals($providedSignature, $computedSignature)) {
-            Log::warning('Rejected Lalamove webhook due to a signature mismatch.');
-
-            abort(401, 'Invalid Lalamove webhook signature.');
+            if (! hash_equals($providedSignature, $computedSignature)) {
+                $failureReason = 'signature mismatch';
+            }
         }
+
+        if ($failureReason === null) {
+            return true;
+        }
+
+        if (config('services.lalamove.webhook_permissive', false)) {
+            Log::warning('Lalamove webhook UNVERIFIED (permissive mode) - capturing request.', [
+                'reason' => $failureReason,
+                'method' => $request->method(),
+                'path' => $request->getPathInfo(),
+                'headers' => $request->headers->all(),
+                'raw_body' => $payloadRaw,
+                'payload' => $payload,
+                'remote_ip' => $request->ip(),
+            ]);
+
+            return false;
+        }
+
+        Log::warning('Rejected Lalamove webhook due to '.$failureReason.'.');
+
+        abort(401, 'Invalid Lalamove webhook signature.');
     }
 }
