@@ -152,46 +152,34 @@
                 @enderror
               </div>
               <div>
-                <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">PROVINCE / DISTRICT *</label>
-                <select
-                  id="select-province"
-                  class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('province') border-red-500 @enderror"
-                  name="province"
-                  required
-                  disabled
-                >
-                  <option value="">Select Province</option>
-                </select>
-                @error('province')
-                  <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
-                @enderror
-              </div>
-              <div>
                 <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">CITY / MUNICIPALITY *</label>
-                <select
-                  id="select-city"
+                <input
                   class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('city') border-red-500 @enderror"
                   name="city"
+                  value="{{ old('city') }}"
+                  placeholder="Pasay"
+                  type="text"
                   required
-                  disabled
+                  maxlength="255"
+                  autocomplete="off"
+                  inputmode="text"
                 >
-                  <option value="">Select City</option>
-                </select>
                 @error('city')
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
                 @enderror
               </div>
               <div>
                 <label class="font-label-caps text-label-caps block mb-2 text-on-surface-variant">BARANGAY *</label>
-                <select
-                  id="select-barangay"
+                <input
                   class="w-full p-4 border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-colors @error('barangay') border-red-500 @enderror"
                   name="barangay"
+                  value="{{ old('barangay') }}"
+                  placeholder="San Isidro"
+                  type="text"
                   required
-                  disabled
+                  maxlength="255"
+                  autocomplete="off"
                 >
-                  <option value="">Select Barangay</option>
-                </select>
                 @error('barangay')
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
                 @enderror
@@ -363,14 +351,6 @@ document.addEventListener('DOMContentLoaded', function() {
   var debounceTimer = null;
 
   var regionSelect = document.getElementById('select-region');
-  var provinceSelect = document.getElementById('select-province');
-  var citySelect = document.getElementById('select-city');
-  var barangaySelect = document.getElementById('select-barangay');
-
-  var psgcRegions = [];
-  var psgcProvinces = [];
-  var psgcCities = [];
-  var psgcBarangays = [];
 
   var state = {
     subtotal: {{ $total }},
@@ -485,8 +465,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function requiredFieldsFilled() {
-    var textFields = ['email', 'first_name', 'last_name', 'address', 'postal', 'phone'];
-    var selects = ['select-region', 'select-province', 'select-city', 'select-barangay'];
+    var textFields = ['email', 'first_name', 'last_name', 'address', 'city', 'barangay', 'postal', 'phone'];
+    var selects = ['select-region'];
     return textFields.every(function(name) {
       var el = document.querySelector('[name="' + name + '"]');
       return el && el.value.trim() !== '';
@@ -509,13 +489,11 @@ document.addEventListener('DOMContentLoaded', function() {
     clearTimeout(debounceTimer);
     var run = function() {
       var params = new URLSearchParams();
-      ['address', 'address2', 'postal', 'phone'].forEach(function(name) {
+      ['address', 'address2', 'city', 'barangay', 'postal', 'phone'].forEach(function(name) {
         var el = document.querySelector('[name="' + name + '"]');
         if (el && el.value) params.append(name, el.value);
       });
-      params.append('barangay', barangaySelect.options[barangaySelect.selectedIndex].text);
-      params.append('city', citySelect.options[citySelect.selectedIndex].text);
-      params.append('region', regionSelect.options[regionSelect.selectedIndex].text);
+      params.append('region', regionSelect.value);
 
       shippingLoading.classList.remove('hidden');
       shippingFeeDisplay.classList.add('opacity-50');
@@ -556,93 +534,26 @@ document.addEventListener('DOMContentLoaded', function() {
     if (immediate) { run(); } else { debounceTimer = setTimeout(run, 600); }
   }
 
-  function populateSelect(select, items, valueKey, labelKey, placeholder) {
-    select.innerHTML = '<option value="">' + placeholder + '</option>';
-    items.forEach(function(item) {
-      var opt = document.createElement('option');
-      opt.value = item[valueKey];
-      opt.textContent = item[labelKey];
-      select.appendChild(opt);
-    });
-    select.disabled = false;
-  }
-
-  function resetSelect(select, placeholder) {
-    select.innerHTML = '<option value="">' + placeholder + '</option>';
-    select.disabled = true;
-  }
-
   function loadRegions() {
     return fetch('/data/philippines/region.json')
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        psgcRegions = data;
-        populateSelect(regionSelect, data, 'region_code', 'region_name', 'Select Region');
-      });
-  }
-
-  function loadProvinces(regionCode) {
-    return fetch('/data/philippines/province.json')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        psgcProvinces = data;
-        var filtered = data.filter(function(p) { return p.region_code === regionCode; });
-        filtered.sort(function(a, b) { return a.province_name.localeCompare(b.province_name); });
-        populateSelect(provinceSelect, filtered, 'province_code', 'province_name', 'Select Province');
-      });
-  }
-
-  function loadCities(provinceCode) {
-    return fetch('/data/philippines/city.json')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        psgcCities = data;
-        var filtered = data.filter(function(c) { return c.province_code === provinceCode; });
-        filtered.sort(function(a, b) { return a.city_name.localeCompare(b.city_name); });
-        populateSelect(citySelect, filtered, 'city_code', 'city_name', 'Select City');
-      });
-  }
-
-  function loadBarangays(cityCode) {
-    return fetch('/data/philippines/barangay.json')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        psgcBarangays = data;
-        var filtered = data.filter(function(b) { return b.city_code === cityCode; });
-        filtered.sort(function(a, b) { return a.brgy_name.localeCompare(b.brgy_name); });
-        populateSelect(barangaySelect, filtered, 'brgy_code', 'brgy_name', 'Select Barangay');
+        regionSelect.innerHTML = '<option value="">Select Region</option>';
+        data.forEach(function(item) {
+          var opt = document.createElement('option');
+          opt.value = item.region_code === '13' ? 'Metro Manila' : item.region_name;
+          opt.textContent = opt.value;
+          regionSelect.appendChild(opt);
+        });
+        regionSelect.disabled = false;
       });
   }
 
   regionSelect.addEventListener('change', function() {
-    var code = this.value;
-    resetSelect(provinceSelect, 'Select Province');
-    resetSelect(citySelect, 'Select City');
-    resetSelect(barangaySelect, 'Select Barangay');
-    if (!code) { estimateShipping(); return; }
-    loadProvinces(code).then(estimateShipping);
-  });
-
-  provinceSelect.addEventListener('change', function() {
-    var code = this.value;
-    resetSelect(citySelect, 'Select City');
-    resetSelect(barangaySelect, 'Select Barangay');
-    if (!code) { estimateShipping(); return; }
-    loadCities(code).then(estimateShipping);
-  });
-
-  citySelect.addEventListener('change', function() {
-    var code = this.value;
-    resetSelect(barangaySelect, 'Select Barangay');
-    if (!code) { estimateShipping(); return; }
-    loadBarangays(code).then(estimateShipping);
-  });
-
-  barangaySelect.addEventListener('change', function() {
     estimateShipping();
   });
 
-  ['address', 'address2', 'postal', 'phone'].forEach(function(name) {
+  ['address', 'address2', 'city', 'barangay', 'postal', 'phone'].forEach(function(name) {
     var el = document.querySelector('[name="' + name + '"]');
     if (el) el.addEventListener('input', estimateShipping);
   });
