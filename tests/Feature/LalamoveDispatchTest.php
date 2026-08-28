@@ -4,6 +4,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\GeocodingService;
 use App\Services\LalamoveDeliveryService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -119,6 +120,41 @@ test('dispatch does not send item or specialRequests in the order payload', func
 
         return true;
     });
+});
+
+test('dispatch geocodes missing coordinates so a numeric city still dispatches', function () {
+    fakeLalamoveOrderFlow();
+
+    $this->mock(GeocodingService::class, function ($mock) {
+        $mock->shouldReceive('geocode')->once()->andReturn(['lat' => 14.5502, 'lng' => 120.9908]);
+    });
+
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_price' => 100, 'product_quantity' => 10]);
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'city' => '137605',
+        'address' => '2461 P. Villanueva St, San Isidro, Pasay, Metro Manila',
+        'barangay' => '137605091',
+        'region' => '137605091',
+        'delivery_lat' => null,
+        'delivery_lng' => null,
+        'status' => 'pending',
+        'payment_status' => 'paid',
+    ]);
+    OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+        'price' => 100,
+    ]);
+
+    $delivery = app(LalamoveDeliveryService::class);
+
+    expect($delivery->dispatch($order))->toBeTrue();
+    expect($order->fresh()->lalamove_order_id)->toBe('order_test_1');
+    expect((float) $order->fresh()->delivery_lat)->toBe(14.5502);
+    expect((float) $order->fresh()->delivery_lng)->toBe(120.9908);
 });
 
 test('dispatch surfaces the real Lalamove error message on a 422', function () {

@@ -285,6 +285,26 @@ test('checkout validates the order payload', function () {
     expect(Order::count())->toBe(0);
 });
 
+test('checkout rejects a numeric postal code used as the city', function () {
+    $user = User::factory()->create();
+    $product = Product::factory()->create(['product_quantity' => 5]);
+    Cart::factory()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    $payload = validCheckoutPayload();
+    $payload['city'] = '137605';
+
+    $this->actingAs($user)
+        ->from('/checkout')
+        ->post('/checkout/place-order', $payload)
+        ->assertSessionHasErrors('city');
+
+    expect(Order::count())->toBe(0);
+});
+
 test('maya failure releases reserved stock and deletes the order', function () {
     Http::fake([
         'pg-sandbox.paymaya.com/*' => Http::response(['errors' => ['message' => 'gateway error']], 400),

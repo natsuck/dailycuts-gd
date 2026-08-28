@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Services\GeocodingService;
 use Illuminate\Support\Facades\Log;
 
 class LalamoveDeliveryService
@@ -12,6 +13,7 @@ class LalamoveDeliveryService
     public function __construct(
         private OrderPricingService $pricing,
         private LalamoveService $lalamove,
+        private GeocodingService $geocoder,
     ) {}
 
     public function getLastError(): ?string
@@ -41,8 +43,12 @@ class LalamoveDeliveryService
             }
         }
 
-        // Fallback: request a fresh quotation using the saved delivery coordinates.
-        $hasCoords = $order->delivery_lat !== null && $order->delivery_lng !== null;
+        // Fallback: request a fresh quotation using the saved delivery
+        // coordinates, resolving them from the address when they are missing
+        // (e.g. geocoding failed at checkout or a postal code slipped into the
+        // city field). This keeps dispatch self-healing instead of silently
+        // pinning an order that Lalamove could still fulfil.
+        [$dropoffLat, $dropoffLng] = $this->deliveryCoords($order);
 
         $dropoffAddress = trim(implode(', ', array_filter([
             $order->address,
@@ -55,8 +61,8 @@ class LalamoveDeliveryService
             $order->city,
             $item,
             $specialRequests,
-            $hasCoords ? (float) $order->delivery_lat : null,
-            $hasCoords ? (float) $order->delivery_lng : null,
+            $dropoffLat,
+            $dropoffLng,
             $dropoffAddress !== '' ? $dropoffAddress : null,
         );
 
@@ -65,7 +71,7 @@ class LalamoveDeliveryService
             || ! isset($quotation['stops'][0]['stopId'], $quotation['stops'][1]['stopId'])) {
             $this->lastError = $this->pricing->lastQuotationError()
                 ?? $this->lalamove->getLastError()
-                ?? 'No valid Lalamove quotation for city "'.$order->city.'"';
+                ?? 'No valid Lalamove quotation for city "'.$order->city.'" (could not resolve delivery coordinates from the address)';
 
             return false;
         }
@@ -142,6 +148,51 @@ class LalamoveDeliveryService
             'name' => $order->name,
             'phone' => $this->lalamove->formatPhone($order->phone),
         ];
+    }
+
+    /**
+     * Resolve the delivery coordinates used for a fresh quotation.
+     *
+     * Returns the order's saved coordinates when present. Otherwise it tries to
+     * geocode the full delivery address from the order, and persists the result
+     * so a later retry does not have to geocode again.
+     *
+     * @return array{0: float|null, 1: float|null}
+     */
+    protected function deliveryCoords(Order $order): array
+    {
+        if ($order->delivery_lat !== null && $order->delivery_lng !== null) {
+            return [(float) $order->delivery_lat, (float) $order->delivery_lng];
+        }
+
+        $address = trim(implode(', ', array_filter([
+            $order->address,
+            $order->barangay,
+            $order->city,
+            $order->region,
+        ])));
+
+        if ($address === '') {
+            return [null, null];
+        }
+
+        $coords = $this->geocoder->geocode($address);
+
+        if (! $coords) {
+            return [null, null];
+        }
+
+        Log::info('Lalamove dispatch geocoded missing delivery coordinates', [
+            'order_id' => $order->id,
+            'lat' => $coords['lat'],
+            'lng' => $coords['lng'],
+        ]);
+
+        $order->delivery_lat = $coords['lat'];
+        $order->delivery_lng = $coords['lng'];
+        $order->save();
+
+        return [(float) $coords['lat'], (float) $coords['lng']];
     }
 
     protected function recordOrder(Order $order, ?array $result, ?string $quotationId): bool

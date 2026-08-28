@@ -167,7 +167,7 @@ class CheckoutController extends Controller
             'address' => ['required', 'string', 'max:255'],
             'address2' => ['nullable', 'string', 'max:255'],
             'barangay' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:255'],
+            'city' => ['required', 'string', 'max:255', 'regex:/[A-Za-zÀ-ÿ]/'],
             'province' => ['nullable', 'string', 'max:255'],
             'region' => ['required', 'string', 'max:255'],
             'postal' => ['required', 'string', 'regex:/^\d{4}$/'],
@@ -177,6 +177,7 @@ class CheckoutController extends Controller
         ], [
             'first_name.regex' => 'First name may only contain letters, spaces, hyphens, and apostrophes.',
             'last_name.regex' => 'Last name may only contain letters, spaces, hyphens, and apostrophes.',
+            'city.regex' => 'Please enter a valid city name, not a postal code.',
             'postal.regex' => 'Postal code must be exactly 4 digits.',
             'phone.regex' => 'Phone number must start with 09 and be exactly 11 digits (e.g. 09171234567).',
             'email.email' => 'Please enter a valid email address.',
