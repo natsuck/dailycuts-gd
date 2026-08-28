@@ -112,7 +112,7 @@
         <p class="text-on-surface-variant">For any questions or concerns regarding these Terms and Conditions, please contact us:</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
           <li>Email: <a href="mailto:tdc@thedailycuts.com" class="text-primary hover:underline">tdc@thedailycuts.com</a></li>
-          <li>Phone: <a href="tel:+631234567891" class="text-primary hover:underline">+63 1234567891</a></li>
+          <li>Phone: <a href="tel:+639291785657" class="text-primary hover:underline">+63 929 178 5657</a></li>
           <li>Address: {{ $storeLocation?->fullAddress() ?? 'Phase 10, Wellington Place' }}</li>
         </ul>
       </section>

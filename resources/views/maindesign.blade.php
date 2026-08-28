@@ -257,7 +257,7 @@
       <div class="col-span-1">
         <h4 class="font-headline-sm text-headline-sm mb-6 text-on-surface">Support</h4>
         <nav class="flex flex-col gap-4">
-          <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="tel:+631234567891">+63 1234567891</a>
+          <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="tel:+639291785657">+63 929 178 5657</a>
           <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="mailto:tdc@thedailycuts.com">tdc@thedailycuts.com</a>
           <a class="text-on-secondary-container hover:text-primary underline-offset-4 transition-all duration-300" href="{{ route('store.locations') }}">Find Our Stores</a>
         </nav>

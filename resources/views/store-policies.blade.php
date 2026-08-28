@@ -113,7 +113,7 @@
           <li><strong>Business Name:</strong> The Daily Cuts</li>
           <li><strong>Address:</strong> {{ $storeLocation?->fullAddress() ?? 'Phase 10, Wellington Place' }}</li>
           <li><strong>Email:</strong> <a href="mailto:tdc@thedailycuts.com" class="text-primary hover:underline">tdc@thedailycuts.com</a></li>
-          <li><strong>Phone:</strong> <a href="tel:+631234567891" class="text-primary hover:underline">+63 1234567891</a></li>
+          <li><strong>Phone:</strong> <a href="tel:+639291785657" class="text-primary hover:underline">+63 929 178 5657</a></li>
           <li><strong>DTI/SEC Registration Number:</strong> <em>To be added</em></li>
           <li><strong>BIR TIN:</strong> <em>To be added</em></li>
         </ul>

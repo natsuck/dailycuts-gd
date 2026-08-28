@@ -18,11 +18,11 @@ return [
 
     'store' => [
         'name' => env('SHOP_NAME', 'The Daily Cuts'),
-        'branch_phone' => env('SHOP_BRANCH_PHONE', '+639000000000'),
+        'branch_phone' => env('SHOP_BRANCH_PHONE', '+639291785657'),
         // Fixed warehouse/pickup location used as the origin for every delivery.
         'warehouse' => [
             'name' => env('SHOP_WAREHOUSE_NAME', 'The Daily Cuts'),
-            'phone' => env('SHOP_WAREHOUSE_PHONE', '+639000000000'),
+            'phone' => env('SHOP_WAREHOUSE_PHONE', '+639291785657'),
             'address' => env('SHOP_WAREHOUSE_ADDRESS', '161 Vallhalla Extension, Pasay City, Philippines'),
             'lat' => (float) env('SHOP_WAREHOUSE_LAT', 14.5378000),
             'lng' => (float) env('SHOP_WAREHOUSE_LNG', 121.0022000),

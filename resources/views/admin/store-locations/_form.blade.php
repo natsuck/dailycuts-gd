@@ -60,7 +60,7 @@
         name="phone"
         class="form-control"
         value="{{ old('phone', $location->phone) }}"
-        placeholder="+63 9000000000"
+        placeholder="+63 929 178 5657"
         maxlength="30"
       />
       @error('phone')

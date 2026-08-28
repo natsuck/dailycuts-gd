@@ -97,7 +97,7 @@
         <p class="text-on-surface-variant">If you have any questions about this Privacy Policy or wish to exercise your data rights, please contact us:</p>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
           <li>Email: <a href="mailto:tdc@thedailycuts.com" class="text-primary hover:underline">tdc@thedailycuts.com</a></li>
-          <li>Phone: <a href="tel:+631234567891" class="text-primary hover:underline">+63 1234567891</a></li>
+          <li>Phone: <a href="tel:+639291785657" class="text-primary hover:underline">+63 929 178 5657</a></li>
           <li>Address: {{ $storeLocation?->fullAddress() ?? '161 Vallhala Extension, Pasay City, Metro Manila' }}</li>
         </ul>
       </section>
