@@ -72,6 +72,8 @@ CACHE_STORE=database
 # not Cloudflare's edge IP. Set TRUSTED_PROXIES to Cloudflare's published IPv4
 # ranges so Laravel trusts X-Forwarded-For from them. See:
 # https://www.cloudflare.com/ips/
+# IMPORTANT: this is read via config('trustedproxy.proxies') (config/trustedproxy.php),
+# NOT a bare env() call, so it keeps working after `php artisan config:cache`.
 # Example (update to the current Cloudflare ranges):
 # TRUSTED_PROXIES=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22
 
@@ -85,6 +87,13 @@ MAYA_SECRET_KEY=SANDBOX_SECRET_KEY
 ```
 
 Then cache the config: `php artisan config:cache`.
+
+Trusted proxies load through `config('trustedproxy.proxies')` (from
+`config/trustedproxy.php`), applied by `App\Http\Middleware\TrustProxies` at
+handle-time, so they survive `config:cache`. Do not read `TRUSTED_PROXIES` via a
+bare `env()` call in `bootstrap/app.php` -- cached-config mode makes `env()`
+return null outside config files, which silently disables proxy trust and breaks
+the webhook IP allowlist.
 
 ## 5. Cloudflare setup
 

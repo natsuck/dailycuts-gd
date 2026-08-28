@@ -3,7 +3,6 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -17,19 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // has to be listed here. Defaults cover the documented nginx + PHP-FPM
         // same-box setup; set TRUSTED_PROXIES when deploying behind an external
         // load balancer / CDN (comma-separated IPs or CIDR ranges).
-        $trustedProxies = array_values(array_filter(array_map(
-            'trim',
-            explode(',', (string) env('TRUSTED_PROXIES', '127.0.0.1,127.0.0.0/8,::1')),
-        )));
-
-        $middleware->trustProxies(
-            at: $trustedProxies,
-            headers: Request::HEADER_X_FORWARDED_FOR
-                | Request::HEADER_X_FORWARDED_HOST
-                | Request::HEADER_X_FORWARDED_PORT
-                | Request::HEADER_X_FORWARDED_PROTO
-                | Request::HEADER_X_FORWARDED_PREFIX
-        );
+        //
+        // The list is loaded by Laravel's default TrustProxies middleware from
+        // config('trustedproxy.proxies') (config/trustedproxy.php, sourced from
+        // the TRUSTED_PROXIES env var). It is read at handle-time so it survives
+        // `php artisan config:cache` -- a bare env()/config() call in this
+        // bootstrap closure returns null/throws once config is cached.
 
         $middleware->alias([
             'admin' => App\Http\Middleware\AdminMiddleware::class,
