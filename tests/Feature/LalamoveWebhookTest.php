@@ -17,11 +17,19 @@ beforeEach(function () {
     Mail::fake();
     config(['services.lalamove.key' => 'test_lalamove_key']);
     config(['services.lalamove.secret' => 'test_lalamove_secret']);
+    config(['services.lalamove.webhook_permissive' => false]);
 });
 
 afterEach(function () {
     config(['services.lalamove.key' => env('LALAMOVE_API_KEY', '')]);
     config(['services.lalamove.secret' => env('LALAMOVE_API_SECRET', '')]);
+    config(['services.lalamove.webhook_permissive' => env('LALAMOVE_WEBHOOK_PERMISSIVE', false)]);
+});
+
+test('webhook GET validation endpoint returns 200', function () {
+    $this->get('/lalamove/webhook')
+        ->assertStatus(200)
+        ->assertJson(['status' => 'ok']);
 });
 
 test('webhook is rejected when apiKey is missing', function () {

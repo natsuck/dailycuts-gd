@@ -78,6 +78,8 @@ Route::post('/maya/webhook', [MayaWebhookController::class, 'handle'])
     ->middleware('throttle:120,1')
     ->withoutMiddleware([VerifyCsrfToken::class]);
 
+Route::get('/lalamove/webhook', fn () => response()->json(['status' => 'ok']));
+
 Route::post('/lalamove/webhook', [LalamoveWebhookController::class, 'handle'])
     ->middleware('throttle:120,1')
     ->withoutMiddleware([VerifyCsrfToken::class]);
