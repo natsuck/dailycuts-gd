@@ -10,6 +10,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\User;
+use App\Services\DeliveryWindow;
 use App\Services\LalamoveDeliveryService;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -299,7 +300,9 @@ class AdminController extends Controller
             'revenue' => Order::where('payment_status', 'paid')->sum('total'),
         ];
 
-        return view('admin.vieworders', compact('orders', 'orderStats'));
+        $dispatchWindow = app(DeliveryWindow::class);
+
+        return view('admin.vieworders', compact('orders', 'orderStats', 'dispatchWindow'));
     }
 
     public function updateStatus(Request $request, $id)

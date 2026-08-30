@@ -1,3 +1,11 @@
+@php
+    $seo = [
+        'title' => 'The Daily Cuts | Online Butchery & Fresh Meat Delivery',
+        'description' => 'The Daily Cuts is a fresh artisanal meat shop delivering quality cuts of beef, pork and chicken right to your door. Browse our online butchery, order by the cut, and get temperature-controlled delivery.',
+        'type' => 'website',
+    ];
+@endphp
+
 @extends('maindesign')
 @section('index')
 

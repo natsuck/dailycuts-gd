@@ -1,3 +1,11 @@
+@php
+    $seo = [
+        'title' => 'Store Policies | The Daily Cuts',
+        'description' => 'The Daily Cuts store policies — ordering, payment, delivery, refunds, and returns for our fresh meat shop.',
+        'type' => 'website',
+    ];
+@endphp
+
 @extends('maindesign')
 
 @section('content')
@@ -16,7 +24,7 @@
         <h2 class="font-headline-sm text-headline-sm text-on-surface mb-3">1. Shipping &amp; Delivery</h2>
         <ul class="list-disc list-inside text-on-surface-variant space-y-2 ml-4">
           <li><strong>Delivery Areas:</strong> As of the moment, we can only serve Metro Manila and some parts of Luzon (Laguna, Cavite, Bulacan, and Rizal).</li>
-          <li><strong>Same-Day Delivery:</strong> Yes, we offer same-day delivery. The cut-off is 3:00pm. Orders placed after 3:00pm will be shipped out the next day.</li>
+          <li><strong>Same-Day Delivery:</strong> Yes, we offer same-day delivery from {{ app(\App\Services\DeliveryWindow::class)->label() }}. Orders placed after {{ app(\App\Services\DeliveryWindow::class)->endLabel() }} will be delivered the next day.</li>
           <li><strong>Delivery Partner:</strong> For your convenience, we book the delivery for you via Lalamove.</li>
           <li><strong>Operating Hours:</strong> We are open from Mondays&ndash;Sundays, 9am&ndash;6pm.</li>
           <li><strong>Delivery Fees:</strong> Delivery fees are calculated at checkout based on your delivery address and order total.</li>

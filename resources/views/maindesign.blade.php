@@ -4,8 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>The Daily Cuts</title>
-  <link rel="shortcut icon" href="{{ asset('frontend/images/img3.jpg') }}">
+
+  <x-seo-meta :seo="$seo ?? []" />
+
+  <link rel="shortcut icon" href="{{ asset('frontend/images/hero-main.png') }}">
+  <link rel="apple-touch-icon" href="{{ asset('frontend/images/hero-main.png') }}">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -1,3 +1,12 @@
+@php
+    $seo = [
+        'title' => $product->product_title . ' | The Daily Cuts',
+        'description' => Str::limit(strip_tags($product->product_description ?? 'Fresh premium cuts from The Daily Cuts.'), 155),
+        'type' => 'product',
+        'image' => asset('products/' . $product->product_image),
+    ];
+@endphp
+
 @extends('maindesign')
 @section('product_details')
 

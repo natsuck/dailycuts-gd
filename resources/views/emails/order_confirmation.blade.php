@@ -67,6 +67,15 @@
 <p><strong>Delivery Address:</strong></p>
 <p>{{ $order->address }}</p>
 
+@php
+    $deliveryWindow = app(\App\Services\DeliveryWindow::class);
+    $dispatchLine = $deliveryWindow->isOpen()
+        ? 'We are arranging delivery for today (window: '.$deliveryWindow->label().').'
+        : 'We will book your delivery at '.$deliveryWindow->nextOpenAt()->format('D, M j, g:ia').' (window: '.$deliveryWindow->label().').';
+@endphp
+
+<p><strong>Delivery:</strong> Same-day delivery runs {{ $deliveryWindow->label() }}. {{ $dispatchLine }}</p>
+
 <br>
 
 <p>You can track the status of your order anytime in your account under <strong>My Orders</strong>.</p>

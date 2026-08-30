@@ -9,36 +9,34 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Safety net for paid orders whose Lalamove delivery was never created
- * (e.g. the queue worker was down when DispatchLalamoveDelivery exhausted
- * its retries). Runs without a queue worker so it recovers even then.
+ * Primary dispatcher: books Lalamove deliveries for paid pending orders,
+ * but only inside the same-day dispatch window (7am-3pm).
+ *
+ * Orders that were paid after the cut-off are held here automatically and
+ * booked at the start of the next window, so no admin action is required.
  */
-class RetryLalamoveDispatch extends Command
+class DispatchPendingOrders extends Command
 {
-    protected $signature = 'orders:retry-lalamove-dispatch {--days=7 : Only retry orders updated within this many days}';
+    protected $signature = 'orders:dispatch-pending';
 
-    protected $description = 'Create missing Lalamove deliveries for paid pending orders';
+    protected $description = 'Book Lalamove deliveries for paid pending orders inside the dispatch window';
 
     public function handle(LalamoveDeliveryService $delivery, DeliveryWindow $window): int
     {
-        // Respect the same-day dispatch window: outside it, orders are left
-        // for orders:dispatch-pending to book at the next opening.
         if (! $window->isOpen()) {
-            $this->info('Dispatch window closed; skipping.');
+            $this->info('Dispatch window closed; next open at '.$window->nextOpenAt()->toDateTimeString().'.');
 
             return self::SUCCESS;
         }
-
-        $since = now()->subDays(max(1, (int) $this->option('days')));
 
         $orders = Order::query()
             ->where('payment_status', 'paid')
             ->where('status', 'pending')
             ->whereNull('lalamove_order_id')
-            ->where('updated_at', '>=', $since)
             ->get();
 
         $dispatched = 0;
+        $failed = 0;
 
         foreach ($orders as $order) {
             try {
@@ -48,19 +46,23 @@ class RetryLalamoveDispatch extends Command
                     continue;
                 }
 
-                Log::warning('Lalamove retry could not create a delivery.', [
+                $failed++;
+
+                Log::warning('orders:dispatch-pending could not create a delivery.', [
                     'order_id' => $order->id,
                     'reason' => $delivery->getLastError(),
                 ]);
             } catch (\Throwable $e) {
-                Log::error('Lalamove retry exception', [
+                $failed++;
+
+                Log::error('orders:dispatch-pending exception', [
                     'order_id' => $order->id,
                     'message' => $e->getMessage(),
                 ]);
             }
         }
 
-        $this->info("Dispatched {$dispatched} Lalamove delivery(ies).");
+        $this->info("Dispatched {$dispatched} Lalamove delivery(ies). Failed: {$failed}.");
 
         return self::SUCCESS;
     }

@@ -1,3 +1,7 @@
+@php
+    $seo = ['robots' => 'noindex, nofollow'];
+@endphp
+
 @extends('maindesign')
 @section('dashboard')
 

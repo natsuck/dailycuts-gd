@@ -1,3 +1,11 @@
+@php
+    $seo = [
+        'title' => 'Privacy Policy | The Daily Cuts',
+        'description' => 'Read The Daily Cuts privacy policy to understand how we collect, use, and protect your personal information.',
+        'type' => 'website',
+    ];
+@endphp
+
 @extends('maindesign')
 
 @section('content')

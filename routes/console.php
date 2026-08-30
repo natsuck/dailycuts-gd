@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 Schedule::command('orders:reconcile-maya')->everyFiveMinutes();
 Schedule::command('orders:expire-unpaid')->hourly();
 Schedule::command('orders:retry-lalamove-dispatch')->everyFifteenMinutes();
+Schedule::command('orders:dispatch-pending')->everyFiveMinutes();

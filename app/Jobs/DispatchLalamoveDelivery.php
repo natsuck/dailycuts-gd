@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Order;
+use App\Services\DeliveryWindow;
 use App\Services\LalamoveDeliveryService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -12,11 +13,12 @@ use RuntimeException;
 /**
  * Creates the Lalamove delivery for a paid order, with retries.
  *
- * Dispatched after the payment transaction commits. A soft failure inside
- * LalamoveDeliveryService::dispatch() (returns false) or an exception is
- * surfaced as a job failure so the queue retries with backoff; the scheduled
- * orders:retry-lalamove-dispatch command is the safety net if the worker is
- * down.
+ * Dispatched after the payment transaction commits. When the window is closed
+ * (outside the same-day dispatch window) the order is deferred to the
+ * scheduled orders:dispatch-pending command instead of booking a rider.
+ * Inside the window, a soft failure inside LalamoveDeliveryService::dispatch()
+ * (returns false) or an exception is surfaced as a job failure so the queue
+ * retries with backoff.
  */
 class DispatchLalamoveDelivery implements ShouldQueue
 {
@@ -31,7 +33,7 @@ class DispatchLalamoveDelivery implements ShouldQueue
         public int $orderId,
     ) {}
 
-    public function handle(LalamoveDeliveryService $delivery): void
+    public function handle(LalamoveDeliveryService $delivery, DeliveryWindow $window): void
     {
         $order = Order::find($this->orderId);
 
@@ -40,6 +42,12 @@ class DispatchLalamoveDelivery implements ShouldQueue
         }
 
         if ($order->lalamove_order_id) {
+            return;
+        }
+
+        // Outside the dispatch window the order is held for the scheduled
+        // orders:dispatch-pending command, which books it at the next opening.
+        if (! $window->isOpen()) {
             return;
         }
 

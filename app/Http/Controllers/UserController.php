@@ -171,9 +171,14 @@ class UserController extends Controller
             'message' => ['required', 'string', 'max:2000'],
         ]);
 
-        $recipient = config('mail.from.address');
+        $recipient = (string) config('services.reseller.email')
+            ?: (string) config('mail.from.address');
 
-        Mail::to($recipient)->send(new ResellerInquiryMail($validated));
+        try {
+            Mail::to($recipient)->queue(new ResellerInquiryMail($validated));
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return redirect()
             ->route('contact_us')

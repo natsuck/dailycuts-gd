@@ -1,3 +1,11 @@
+@php
+    $seo = [
+        'title' => 'Terms & Conditions | The Daily Cuts',
+        'description' => 'Read The Daily Cuts terms and conditions covering your use of our online meat shop and delivery service.',
+        'type' => 'website',
+    ];
+@endphp
+
 @extends('maindesign')
 
 @section('content')

@@ -3,6 +3,12 @@
 return [
     'shipping' => [
         'flat_fee' => (float) env('SHOP_FLAT_SHIPPING_FEE', 150),
+        // Same-day delivery is only available inside this dispatch window.
+        // The window is half-open: dispatch runs from start_hour up to end_hour.
+        'dispatch_window' => [
+            'start_hour' => (int) env('SHOP_DISPATCH_START_HOUR', 7),
+            'end_hour' => (int) env('SHOP_DISPATCH_END_HOUR', 15),
+        ],
         'lalamove_service_type' => env('LALAMOVE_SERVICE_TYPE', 'MOTORCYCLE'),
         'lalamove_special_requests' => env('LALAMOVE_SPECIAL_REQUESTS') ? explode(',', env('LALAMOVE_SPECIAL_REQUESTS')) : ['THERMAL_BAG_1'],
         'lalamove_item_weight' => env('LALAMOVE_ITEM_WEIGHT', 'LESS_THAN_20_KG'),

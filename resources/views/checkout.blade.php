@@ -1,3 +1,7 @@
+@php
+    $seo = ['robots' => 'noindex, nofollow'];
+@endphp
+
 @extends('maindesign')
 @section('checkout')
 
@@ -201,6 +205,11 @@
                   <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
                 @enderror
               </div>
+            </div>
+            <div class="mt-4 p-3 rounded-lg bg-surface-container-low border border-outline-variant text-sm text-on-surface-variant">
+              <strong class="text-on-surface font-bold">Same-day delivery:</strong> available from
+              {{ app(\App\Services\DeliveryWindow::class)->label() }}. Orders placed after
+              {{ app(\App\Services\DeliveryWindow::class)->endLabel() }} are delivered the next day.
             </div>
           </section>
 

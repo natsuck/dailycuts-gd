@@ -1,3 +1,16 @@
+@php
+    $shopCategory = request('category');
+    $seo = [
+        'title' => $shopCategory
+            ? ucwords(str_replace('_', ' ', $shopCategory)) . ' | Shop The Daily Cuts'
+            : 'Shop All Cuts | The Daily Cuts',
+        'description' => $shopCategory
+            ? 'Shop fresh ' . strtolower(str_replace('_', ' ', $shopCategory)) . ' from The Daily Cuts. Premium cuts to order online with temperature-controlled delivery.'
+            : 'Shop all cuts at The Daily Cuts — premium fresh beef, pork and chicken, ready to order online for delivery.',
+        'type' => 'website',
+    ];
+@endphp
+
 @extends('maindesign')
 @section('shop')
 

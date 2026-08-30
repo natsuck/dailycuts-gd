@@ -1,3 +1,11 @@
+@php
+    $seo = [
+        'title' => 'Frequently Asked Questions | The Daily Cuts',
+        'description' => 'Answers to common questions about The Daily Cuts — ordering, delivery, storage, and how our fresh meat delivery works.',
+        'type' => 'website',
+    ];
+@endphp
+
 @extends('maindesign')
 
 @section('content')
@@ -13,9 +21,10 @@
     <div class="space-y-4">
       @php
         $storeLocation = \App\Models\StoreLocation::activePickup();
+        $deliveryWindow = app(\App\Services\DeliveryWindow::class);
         $faqs = [
           'How can I order?' => 'You can place your order directly through this official account. Just follow the usual steps to check out.',
-          'Can you do same-day delivery?' => 'Yes. Cut-off for same-day delivery is 3:00pm. Orders after 3:00pm will be shipped out the next day.',
+          'Can you do same-day delivery?' => 'Yes. Same-day delivery is available from '.$deliveryWindow->label().'. Orders placed after '.$deliveryWindow->endLabel().' will be delivered the next day.',
           'How will you deliver my goods?' => 'For your convenience, we will book the delivery for you via Lalamove.',
           'What days are you open?' => 'We are open from Mondays-Sundays, 9am-6pm.',
           'Where are you located?' => $storeLocation

@@ -54,6 +54,10 @@ return [
         'key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
+    'reseller' => [
+        'email' => env('RESELLER_INQUIRY_EMAIL'),
+    ],
+
     'geocoder' => [
         'providers' => env('GEOCODER_PROVIDERS', 'google,photon,nominatim'),
         'photon_url' => env('PHOTON_GEOCODING_URL', 'https://photon.komoot.io/api'),

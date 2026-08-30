@@ -1,3 +1,11 @@
+@php
+    $seo = [
+        'title' => 'Become a Reseller | The Daily Cuts',
+        'description' => 'Partner with The Daily Cuts and bring premium fresh meat cuts to your customers. Send us a reseller inquiry today.',
+        'type' => 'website',
+    ];
+@endphp
+
 @extends('maindesign')
 
 @section('contact_us')

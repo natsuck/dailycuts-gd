@@ -323,8 +323,22 @@
                                         @endif
                                     </div>
                                 @elseif($order->payment_status === 'paid')
+                                    <div class="order-muted mt-2">
+                                        <i class="fa fa-clock mr-1"></i>
+                                        @if($dispatchWindow->isOpen())
+                                            Awaiting auto-dispatch (window: {{ $dispatchWindow->label() }})
+                                        @else
+                                            Awaiting dispatch — auto-books {{ $dispatchWindow->nextOpenAt()->format('D, M j, g:ia') }}
+                                        @endif
+                                    </div>
                                     <form action="{{ route('admin.order.dispatchLalamove', $order->id) }}" method="POST" class="mt-2">
                                         @csrf
+
+                                        @if(! $dispatchWindow->isOpen())
+                                            <div class="text-warning small mb-1">
+                                                <i class="fa fa-exclamation-triangle mr-1"></i>Outside window — dispatching now anyway
+                                            </div>
+                                        @endif
 
                                         <button type="submit" class="btn btn-sm btn-outline-info btn-block">
                                             <i class="fa fa-motorcycle mr-1"></i> Dispatch to Lalamove

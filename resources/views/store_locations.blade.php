@@ -1,3 +1,11 @@
+@php
+    $seo = [
+        'title' => 'Find Our Stores | The Daily Cuts Meat Shops',
+        'description' => 'Find a The Daily Cuts store near you. Visit our fresh meat shops for premium cuts, or order online for delivery.',
+        'type' => 'website',
+    ];
+@endphp
+
 @extends('maindesign')
 
 @section('store_locations')
