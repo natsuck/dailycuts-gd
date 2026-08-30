@@ -12,7 +12,8 @@
     "php": "^8.2",
     "doctrine/dbal": "^4.4",
     "laravel/framework": "^12.0",
-    "laravel/socialite": "^5.29"
+    "laravel/socialite": "^5.29",
+    "resend/resend-laravel": "^1.4"
   },
   "require-dev": {
     "fakerphp/faker": "^1.23",
