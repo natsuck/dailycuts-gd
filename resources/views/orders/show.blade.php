@@ -82,6 +82,19 @@
 
     {{-- Live Lalamove Courier Tracking --}}
     @if($order->lalamove_order_id)
+      @php
+        $courierKey = $order->courierStatusKey();
+        $courierBadgeColors = [
+          'COMPLETED' => 'bg-green-100 text-green-800 border-green-300',
+          'CANCELED' => 'bg-red-100 text-red-800 border-red-300',
+          'CANCELLED' => 'bg-red-100 text-red-800 border-red-300',
+          'EXPIRED' => 'bg-red-100 text-red-800 border-red-300',
+          'REJECTED' => 'bg-red-100 text-red-800 border-red-300',
+          'FAILED' => 'bg-red-100 text-red-800 border-red-300',
+          'ASSIGNING_DRIVER' => 'bg-yellow-100 text-yellow-800 border-yellow-300',
+        ];
+        $courierBadgeClass = $courierBadgeColors[$courierKey] ?? 'bg-blue-100 text-blue-800 border-blue-300';
+      @endphp
       <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 mb-8">
         <div class="flex items-center justify-between mb-4">
           <h2 class="font-headline-sm text-headline-sm text-on-surface">Courier Tracking</h2>
@@ -91,15 +104,14 @@
           </button>
         </div>
         <div class="flex items-center gap-3 mb-4">
-          <span id="courier-badge" class="inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-blue-100 text-blue-800 border-blue-300">
-            {{ $order->lalamove_status ?? ($order->delivery_status ?? 'pending') }}
+          <span id="courier-badge" class="inline-block px-3 py-1 rounded border text-sm font-bold uppercase {{ $courierBadgeClass }}">
+            {{ $order->courierStatusShort() }}
           </span>
         </div>
         <p id="courier-driver" class="font-body-md text-on-surface-variant mb-4">
-          @if($order->lalamove_status === 'COMPLETED')
-            Your order has been delivered. Thank you!
-          @else
-            Looking for a courier...
+          {{ $order->courierStatusText() }}
+          @if($order->lalamove_driver_name)
+            Courier: {{ $order->lalamove_driver_name }}{{ $order->lalamove_driver_phone ? ' ('.$order->lalamove_driver_phone.')' : '' }}.
           @endif
         </p>
         <a id="courier-track-link" href="{{ $order->tracking_url ?: '#' }}"
@@ -234,31 +246,28 @@ document.addEventListener('DOMContentLoaded', function() {
   var trackLink = document.getElementById('courier-track-link');
   var refreshBtn = document.getElementById('courier-refresh');
 
-  var labels = {
-    'ASSIGNING_DRIVER': 'Looking for a courier...',
-    'DRIVER_ASSIGNED': 'A courier has been assigned.',
-    'ON_GOING': 'Your order is on the way.',
-    'COMPLETED': 'Your order has been delivered. Thank you!',
-    'CANCELED': 'Delivery was cancelled.',
-    'CANCELLED': 'Delivery was cancelled.',
-    'EXPIRED': 'Delivery expired.',
-    'REJECTED': 'Delivery was rejected.',
-    'FAILED': 'Delivery failed.'
-  };
+  var courierMap = @json(\App\Models\Order::courierStatusMap());
+
+  function badgeClass(status) {
+    var base = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase ';
+    if (status === 'COMPLETED') {
+      return base + 'bg-green-100 text-green-800 border-green-300';
+    }
+    if (['CANCELED', 'CANCELLED', 'EXPIRED', 'REJECTED', 'FAILED'].indexOf(status) !== -1) {
+      return base + 'bg-red-100 text-red-800 border-red-300';
+    }
+    return base + 'bg-blue-100 text-blue-800 border-blue-300';
+  }
 
   function render(data) {
-    var status = data.lalamove_status || data.status || 'PENDING';
+    var status = (data.lalamove_status || data.status || 'PENDING').toUpperCase();
+    var entry = courierMap[status] || null;
     if (badge) {
-      badge.textContent = status;
-      badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-blue-100 text-blue-800 border-blue-300';
-      if (status === 'COMPLETED') {
-        badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-green-100 text-green-800 border-green-300';
-      } else if (['CANCELED', 'CANCELLED', 'EXPIRED', 'REJECTED', 'FAILED'].indexOf(status) !== -1) {
-        badge.className = 'inline-block px-3 py-1 rounded border text-sm font-bold uppercase bg-red-100 text-red-800 border-red-300';
-      }
+      badge.textContent = entry ? entry.short : status;
+      badge.className = badgeClass(status);
     }
     if (driver) {
-      driver.textContent = labels[status] || 'Status: ' + status;
+      driver.textContent = entry ? entry.text : 'Courier status: ' + status + '.';
       if (data.driver && data.driver.name) {
         driver.textContent += ' Courier: ' + data.driver.name + (data.driver.phone ? ' (' + data.driver.phone + ')' : '') + '.';
       }

@@ -148,7 +148,15 @@ class MayaWebhookController extends Controller
             return;
         }
 
-        Mail::to($order->user->email)->queue(new OrderConfirmationMail($order));
+        try {
+            Mail::to($order->user->email)->queue(new OrderConfirmationMail($order));
+        } catch (\Throwable $e) {
+            Log::error('Failed to queue the order confirmation email.', [
+                'order_id' => $order->id,
+                'recipient' => $order->user->email,
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function dispatchLalamove(int $orderId): void

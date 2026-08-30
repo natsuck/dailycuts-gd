@@ -145,7 +145,16 @@ class LalamoveWebhookController extends Controller
             return;
         }
 
-        Mail::to($user->email)->queue(new $mailableClass($order));
+        try {
+            Mail::to($user->email)->queue(new $mailableClass($order));
+        } catch (\Throwable $e) {
+            Log::error('Failed to queue the order status email.', [
+                'order_id' => $order->id,
+                'mailable' => $mailableClass,
+                'recipient' => $user->email,
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function verifyPayload(Request $request, string $payloadRaw, array $payload): bool

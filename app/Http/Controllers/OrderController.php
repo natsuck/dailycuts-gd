@@ -55,7 +55,7 @@ class OrderController extends Controller
 
         if ($info) {
             $order->lalamove_status = $info['status'] ?? $order->lalamove_status;
-            $order->delivery_status = $info['status'] ?? $order->delivery_status;
+            $order->delivery_status = isset($info['status']) ? strtolower($info['status']) : $order->delivery_status;
             $order->tracking_url = data_get($info, 'shareLink') ?: $order->tracking_url;
             $order->save();
         }

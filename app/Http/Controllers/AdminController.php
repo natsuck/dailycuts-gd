@@ -16,6 +16,7 @@ use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 
@@ -309,13 +310,13 @@ class AdminController extends Controller
     {
         $order = Order::with(['items.product', 'user'])->findOrFail($id);
         $validated = $request->validate([
-            'status' => ['required', 'in:pending,processing,shipped,delivered,cancelled,returned'],
+            'status' => ['required', 'in:pending,processing,shipped,delivered,cancelled,returned,failed'],
         ]);
 
         $allowedTransitions = [
-            'pending' => ['processing', 'shipped', 'cancelled'],
-            'processing' => ['shipped', 'delivered', 'cancelled'],
-            'shipped' => ['delivered', 'returned'],
+            'pending' => ['processing', 'shipped', 'cancelled', 'failed'],
+            'processing' => ['shipped', 'delivered', 'cancelled', 'failed'],
+            'shipped' => ['delivered', 'returned', 'failed'],
             'delivered' => ['returned'],
             'cancelled' => [],
             'returned' => [],
@@ -333,15 +334,38 @@ class AdminController extends Controller
         $order->status = $target;
         $order->save();
 
+        $mailWarning = null;
+
         if ($order->status === 'shipped' && $order->user) {
-            Mail::to($order->user->email)->queue(new OrderShippedMail($order));
+            try {
+                Mail::to($order->user->email)->queue(new OrderShippedMail($order));
+            } catch (\Throwable $e) {
+                Log::error('Failed to queue the shipped email.', [
+                    'order_id' => $order->id,
+                    'recipient' => $order->user->email,
+                    'exception' => $e->getMessage(),
+                ]);
+                $mailWarning = 'Status updated, but the shipped email could not be queued.';
+            }
         }
 
         if ($order->status === 'delivered' && $order->user) {
-            Mail::to($order->user->email)->queue(new OrderDeliveredMail($order));
+            try {
+                Mail::to($order->user->email)->queue(new OrderDeliveredMail($order));
+            } catch (\Throwable $e) {
+                Log::error('Failed to queue the delivered email.', [
+                    'order_id' => $order->id,
+                    'recipient' => $order->user->email,
+                    'exception' => $e->getMessage(),
+                ]);
+                $mailWarning = 'Status updated, but the delivered email could not be queued.';
+            }
         }
 
-        return redirect()->back()->with('success', 'Order status updated!');
+        return redirect()->back()->with(
+            'success',
+            'Order status updated!'.($mailWarning ? ' '.$mailWarning : '')
+        );
     }
 
     public function dispatchToLalamove($id)
